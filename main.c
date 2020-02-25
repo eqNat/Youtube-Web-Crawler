@@ -13,7 +13,7 @@
 struct T_Data {
 	struct Stack_Node* stack_head;
 	struct BST_Node* bst_head;
-	int loop_count;
+	uint64_t loop_count;
 };
 
 void* runner(void* args)
@@ -26,22 +26,22 @@ void* runner(void* args)
 	FILE *f;
 
 	while (id = pop(&t_data->stack_head)) {
-		if (get_20_rec(id, video_recs)) {
-			f = fopen("youtube_bin", "ab");
-			fwrite(&id, sizeof(uint64_t), 1, f);
-			fwrite(video_recs, sizeof(uint64_t), 20, f);
-			fclose(f);
-
-			for (int j = 0; j < 20; j++) {
-				if (video_recs[j] && BST_insert(&t_data->bst_head, video_recs[j])) {
-					push(&t_data->stack_head, video_recs[j]);
-				}
-			}
-			t_data->loop_count++;
-			//if (t_data->loop_count % 1000 == 0)
-				printf("loop %d, bst = %ld, stack = %ld\n", t_data->loop_count, getBSTCount(), getStackCount());
+		if (!get_20_rec(id, video_recs)) {
+			fprintf(stderr, "id %lu failed.\n", id);
+			continue;
 		}
+		f = fopen("youtube_bin", "ab");
+		fwrite(&id, sizeof(uint64_t), 1, f);
+		fwrite(video_recs, sizeof(uint64_t), 20, f);
+		fclose(f);
 
+		for (int32_t j = 0; j < 20; j++) {
+			if (video_recs[j] && BST_insert(&t_data->bst_head, video_recs[j]))
+				push(&t_data->stack_head, video_recs[j]);
+		}
+		t_data->loop_count++;
+		if (t_data->loop_count % 1000 == 0)
+			printf("loop = %ld, bst = %ld, stack = %ld\n", t_data->loop_count, getBSTCount(), getStackCount());
 	}
 	pthread_exit(0);
 }
@@ -56,21 +56,21 @@ int main()
 		.loop_count = 0
 	};
 
-	{// load 'youtube_bin' if it exists, else load default video id.
+	{// load the 'youtube_bin' file if it exists, else load default video id.
 		char default_id[11] = "nX6SAH3w6UI";
 		uint64_t buffer[21];
-		int fd;
+		int64_t fd;
 		if (access("youtube_bin", F_OK) != -1) {
 			printf("loading 'youtube_bin'...\n");
 			fd = open("youtube_bin", O_RDONLY);
 			while (read(fd, buffer, 168)) {
 				if (!BST_insert(&t_data.bst_head, buffer[0]))
-					fprintf(stderr, "ERROR: Attempted to insert duplicate values.\n");
+					fprintf(stderr, "**ERROR**: Attempted to insert duplicate values.\n");
 			}
 			lseek(fd, 0, SEEK_SET);
 
 			while (read(fd, buffer, 168))
-			for (int i = 1; i < 21; i++) {
+			for (int32_t i = 1; i < 21; i++) {
 				if (BST_insert(&t_data.bst_head, buffer[i])) {
 					push(&t_data.stack_head, buffer[i]);
 				}
@@ -85,7 +85,7 @@ int main()
 
 	{// multithreading setup and execution
 		pthread_t tids[THREAD_NUM];
-		for (int i = 0; i < THREAD_NUM; i++) {
+		for (int32_t i = 0; i < THREAD_NUM; i++) {
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, &t_data);
@@ -94,7 +94,7 @@ int main()
 			printf("thread %d in\n", i+1);
 		}
 
-		for (int i = 0; i < THREAD_NUM; i++) {
+		for (int32_t i = 0; i < THREAD_NUM; i++) {
 			pthread_join(tids[i], NULL);
 		}
 	}
