@@ -16,8 +16,6 @@ struct T_Data {
 	int loop_count;
 };
 
-pthread_mutex_t lock;
-
 void* runner(void* args)
 {
 	struct T_Data* t_data = (struct T_Data*) args;
@@ -27,11 +25,8 @@ void* runner(void* args)
 	char url[11];
 	FILE *f;
 
-	pthread_mutex_lock(&lock);
 	while (id = pop(&t_data->stack_head)) {
-		pthread_mutex_unlock(&lock);
 		if (get_20_rec(id, video_recs)) {
-			pthread_mutex_lock(&lock);
 			f = fopen("youtube_bin", "ab");
 			fwrite(&id, sizeof(uint64_t), 1, f);
 			fwrite(video_recs, sizeof(uint64_t), 20, f);
@@ -43,14 +38,11 @@ void* runner(void* args)
 				}
 			}
 			t_data->loop_count++;
-			if (t_data->loop_count % 1000 == 0)
+			//if (t_data->loop_count % 1000 == 0)
 				printf("loop %d, bst = %ld, stack = %ld\n", t_data->loop_count, getBSTCount(), getStackCount());
-		} else {
-			pthread_mutex_lock(&lock);
 		}
 
 	}
-	pthread_mutex_unlock(&lock);
 	pthread_exit(0);
 }
 

@@ -12,11 +12,11 @@ struct BST_Node {
 };
 #define BST_NODE_SIZE sizeof(struct BST_Node)
 
-static uint64_t BST_count = 0;
+static uint64_t node_count = 0;
 
 uint64_t getBSTCount()
 {
-	return BST_count;
+	return node_count;
 }
 
 struct BST_Node* create_node(uint64_t data)
@@ -28,15 +28,22 @@ struct BST_Node* create_node(uint64_t data)
 	return new_node;
 }
 
+pthread_mutex_t key;
 
 int32_t BST_insert(struct BST_Node** node, uint64_t data)
 {
+	pthread_mutex_lock(&key);
 	while (*node) {
-		if ((*node)->data == data)
+		if ((*node)->data == data) {
+			pthread_mutex_unlock(&key);
 			return 0;
+		}
 		node = ((*node)->data > data) ? &(*node)->left : &(*node)->right;
 	}
 	*node = create_node(data);
-	BST_count++;
+
+	pthread_mutex_unlock(&key);
+
+	node_count++;
 	return 1;
 }
