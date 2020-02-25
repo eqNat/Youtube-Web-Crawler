@@ -13,8 +13,6 @@
 struct T_Data {
 	struct Stack_Node* stack_head;
 	struct BST_Node* bst_head;
-	int bst_count;
-	int stack_count;
 	int loop_count;
 };
 
@@ -31,7 +29,6 @@ void* runner(void* args)
 
 	pthread_mutex_lock(&lock);
 	while (id = pop(&t_data->stack_head)) {
-		t_data->stack_count--;
 		pthread_mutex_unlock(&lock);
 		if (get_20_rec(id, video_recs)) {
 			pthread_mutex_lock(&lock);
@@ -43,13 +40,11 @@ void* runner(void* args)
 			for (int j = 0; j < 20; j++) {
 				if (video_recs[j] && BST_insert(&t_data->bst_head, video_recs[j])) {
 					push(&t_data->stack_head, video_recs[j]);
-					t_data->bst_count++;
-					t_data->stack_count++;
 				}
 			}
 			t_data->loop_count++;
 			if (t_data->loop_count % 1000 == 0)
-				printf("loop %d, bst = %d, stack = %d\n", t_data->loop_count, t_data->bst_count, t_data->stack_count);
+				printf("loop %d, bst = %ld, stack = %ld\n", t_data->loop_count, getBSTCount(), getStackCount());
 		} else {
 			pthread_mutex_lock(&lock);
 		}
@@ -66,8 +61,6 @@ int main()
 	struct T_Data t_data = {
 		.stack_head = NULL,
 		.bst_head = NULL,
-		.bst_count = 0,
-		.stack_count = 0,
 		.loop_count = 0
 	};
 
@@ -80,8 +73,7 @@ int main()
 			fd = open("youtube_bin", O_RDONLY);
 			while (read(fd, buffer, 168)) {
 				if (!BST_insert(&t_data.bst_head, buffer[0]))
-					fprintf(stderr, "ERROR: Atempted to insert duplicate values.\n");
-				t_data.bst_count++;
+					fprintf(stderr, "ERROR: Attempted to insert duplicate values.\n");
 			}
 			lseek(fd, 0, SEEK_SET);
 
@@ -89,17 +81,13 @@ int main()
 			for (int i = 1; i < 21; i++) {
 				if (BST_insert(&t_data.bst_head, buffer[i])) {
 					push(&t_data.stack_head, buffer[i]);
-					t_data.stack_count++;
-					t_data.bst_count++;
 				}
 			}
 			close(fd);
-			printf("loop %d, bst = %d, stack = %d\n", t_data.loop_count, t_data.bst_count, t_data.stack_count);
+			printf("bst = %ld, stack = %ld\n", getBSTCount(), getStackCount());
 		} else {
 			BST_insert(&t_data.bst_head, urltoll(default_id));
 			push(&t_data.stack_head, urltoll(default_id));
-			t_data.bst_count++;
-			t_data.stack_count++;
 		}
 	}
 
@@ -109,9 +97,9 @@ int main()
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, &t_data);
-			while (t_data.stack_count < 10)
+			while (getStackCount() < 10)
 			{ /* wait for first thread to push its first set of IDs */ }
-			printf("thread %d in\n", i);
+			printf("thread %d in\n", i+1);
 		}
 
 		for (int i = 0; i < THREAD_NUM; i++) {

@@ -11,12 +11,20 @@ struct Stack_Node {
 };
 #define STACK_NODE_SIZE sizeof(struct Stack_Node)
 
+static uint64_t stack_count = 0;
+
+uint64_t getStackCount()
+{
+	return stack_count;
+}
+
 void push(struct Stack_Node** node, uint64_t data)
 {		
 	struct Stack_Node* new_node = malloc(STACK_NODE_SIZE);
 	new_node->data = data;
 	new_node->next = *node;
 	*node = new_node;
+	stack_count++;
 }
 
 uint64_t pop(struct Stack_Node** node)
@@ -30,6 +38,7 @@ uint64_t pop(struct Stack_Node** node)
 	temp = (*node)->data;
 	*node = (*node)->next;
 	free(old_node);
+	stack_count--;
 	return temp;
 }
 

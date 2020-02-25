@@ -12,6 +12,13 @@ struct BST_Node {
 };
 #define BST_NODE_SIZE sizeof(struct BST_Node)
 
+static uint64_t BST_count = 0;
+
+uint64_t getBSTCount()
+{
+	return BST_count;
+}
+
 struct BST_Node* create_node(uint64_t data)
 {
 	struct BST_Node *new_node = malloc(BST_NODE_SIZE);
@@ -30,5 +37,6 @@ int32_t BST_insert(struct BST_Node** node, uint64_t data)
 		node = ((*node)->data > data) ? &(*node)->left : &(*node)->right;
 	}
 	*node = create_node(data);
+	BST_count++;
 	return 1;
 }
