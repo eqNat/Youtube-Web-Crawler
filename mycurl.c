@@ -9,7 +9,8 @@ struct url_data {
     char* data;
 };
 
-size_t write_data(void *ptr, size_t size, size_t nmemb, struct url_data *data) {
+size_t write_data(void *ptr, size_t size, size_t nmemb, struct url_data *data)
+{
     size_t index = data->size;
     size_t n = (size * nmemb);
     char* tmp;
@@ -37,7 +38,8 @@ size_t write_data(void *ptr, size_t size, size_t nmemb, struct url_data *data) {
     return size * nmemb;
 }
 
-char *handle_url(char* url) {
+char *handle_url(char* url)
+{
     CURL *curl;
 
 	char full_url[43] = "https://www.youtube.com/watch?v=";
@@ -60,14 +62,14 @@ char *handle_url(char* url) {
         curl_easy_setopt(curl, CURLOPT_URL, full_url);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-        res = curl_easy_perform(curl);
-        if(res != CURLE_OK) {
-                fprintf(stderr, "curl_easy_perform() failed: %s\n",  
-                        curl_easy_strerror(res));
-        }
-
+		for (int attempt = 1; attempt <= 10000000; attempt++) {
+        	res = curl_easy_perform(curl);
+        	if (res == CURLE_OK)
+				break;
+//			if (attempt == 10)
+                fprintf(stderr, "Attempt %d for %s failed: %s\n", attempt, url, curl_easy_strerror(res));
+		}
         curl_easy_cleanup(curl);
-
     }
     return data.data;
 }

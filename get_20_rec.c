@@ -23,8 +23,8 @@ int get_20_rec(uint64_t id, uint64_t* rec_ids)
 			fprintf(stderr, "**************************************************************************\n");
 			fprintf(stderr, "This HTML contains the string \"content-link\" but no following \"spf-link\"\n");
 			fprintf(stderr, "**************************************************************************\n");
-			scanf("%c", &insert);
 		} else {
+			fprintf(stderr, "id %s failed.\n", url);
 			return 0;
 		}
 	}
