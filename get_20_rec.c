@@ -7,7 +7,6 @@
 #include "url_conversion.h"
 #include "get_20_rec.h"
 
-// 'rec' is short for 'recommendation'
 
 int get_20_rec(uint64_t id, uint64_t* rec_ids)
 {
@@ -42,8 +41,7 @@ int get_20_rec(uint64_t id, uint64_t* rec_ids)
 		p_char++;
 	}
 
-	if(html_data) {
+	if(html_data)
 		free(html_data);
-	}
 	return 1;
 }

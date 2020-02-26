@@ -27,8 +27,6 @@ void* runner(void* args)
 {
 	struct T_Data* t_data = (struct T_Data*) args;
 	struct Row row;
-	
-	char url[11];
 
 	while (row.id = pop(&t_data->stack_head)) {
 		if (!get_20_rec(row.id, row.recommendations))
@@ -42,12 +40,12 @@ void* runner(void* args)
 		}
 		t_data->row_count++;
 		if (t_data->row_count % 100 == 0)
-			printf("loop = %lu, bst = %lu, stack = %lu\n", t_data->row_count, getBSTCount(), getStackCount());
+			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data->row_count, getBSTCount(), getStackCount());
 	}
 	pthread_exit(0);
 }
 
-#define THREAD_NUM 6
+#define THREAD_NUM 32
 
 int main()
 {
@@ -83,7 +81,7 @@ int main()
 						push(&t_data.stack_head, buffer.recommendations[i]);
 			}
 			close(fd);
-			printf("row = %lu, bst = %lu, stack = %lu\n", t_data.row_count, getBSTCount(), getStackCount());
+			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data.row_count, getBSTCount(), getStackCount());
 		} else {
 			printf("No file found: using default id\n");
 			BST_insert(&t_data.bst_head, urltoll(default_id));
