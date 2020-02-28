@@ -24,6 +24,7 @@ int get_20_rec(uint64_t id, uint64_t* rec_ids)
 			fprintf(stderr, "**************************************************************************\n");
 		} else {
 			fprintf(stderr, "id %s failed.\n", url);
+			free(html_data);
 			return 0;
 		}
 	}
@@ -41,7 +42,6 @@ int get_20_rec(uint64_t id, uint64_t* rec_ids)
 		p_char++;
 	}
 
-	if(html_data)
 		free(html_data);
 	return 1;
 }
