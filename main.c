@@ -30,7 +30,6 @@ void* runner(void* args)
 		get_row(html_data, &row);
 		if (row.recommendations[REC_COUNT-1] == 0) {
 			push(queue, row.id);
-			printf("pushing %s back.\n", lltourl(row.id, ascii_id));
 			free(html_data);
 			continue;
 		}
@@ -53,13 +52,13 @@ int main()
 	queue = createQueue();
 	bst_root = NULL;
 
-	{// load the 'youtube_bin' file if it exists, else load default video id.
+	{// load the 'youtube.bin' file if it exists, else load default video id.
 		char default_id[11] = "nX6SAH3w6UI";
 		struct Row buffer;
 		int32_t fd;
 		int32_t size;
-		if ((fd = open("youtube_bin", O_RDONLY, 0755)) != -1) {
-			printf("Loading 'youtube_bin'...\n");
+		if ((fd = open("youtube.bin", O_RDONLY, 0755)) != -1) {
+			printf("Loading 'youtube.bin'...\n");
 			// load primary keys
 			while (size = read(fd, &buffer, sizeof(struct Row))) {
 				if (size == -1) {

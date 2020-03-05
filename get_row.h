@@ -1,6 +1,6 @@
 #pragma once
 
-#define REC_COUNT 20
+#define REC_COUNT 19
 struct Row {
 	uint64_t id;
 	uint64_t recommendations[REC_COUNT];

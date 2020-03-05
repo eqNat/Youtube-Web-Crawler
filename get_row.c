@@ -17,11 +17,16 @@ void get_row(char* html_data, struct Row* row)
 	if (ret)
 		printf("regcomp failed with %d\n", ret);
 
+		int flag = 1;
 		for (int i = 0; i < REC_COUNT; i++)
 			if (regexec(&exp, cursor, 1, &matches, 0) == 0) {
 				row->recommendations[i] = urltoll(&cursor[matches.rm_so]);
 				cursor = &cursor[matches.rm_eo];
 			} else {
+				if (flag) {
+					flag = 0;
+					fprintf(stderr, "Only %d recommendations: pushing back.\n", i);
+				}
 				row->recommendations[i] = 0;
 			}
 }
