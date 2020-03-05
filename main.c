@@ -109,7 +109,7 @@ static inline void mutex_write(struct Row* row)
 {
 	int32_t size;
 	pthread_mutex_lock(&lock);
-	int32_t fd = open("youtube_bin", O_WRONLY | O_APPEND | O_CREAT, 0755);
+	int32_t fd = open("youtube.bin", O_WRONLY | O_APPEND | O_CREAT, 0755);
 	if ((size = write(fd, row, sizeof(struct Row))) == -1) {
 		perror("write failed: ");
 		exit(1);
