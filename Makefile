@@ -1,11 +1,11 @@
-main: main.o bst.o stack.o get_20_rec.o mycurl.o url_conversion.o
-	gcc main.o bst.o stack.o get_20_rec.o url_conversion.o mycurl.o -lcurl -pthread -o main
+main: main.o bst.o stack.o get_row.o mycurl.o url_conversion.o
+	gcc main.o bst.o stack.o get_row.o url_conversion.o mycurl.o -lcurl -pthread -o main
 
-main.o: main.c get_20_rec.h url_conversion.h stack.h bst.h
+main.o: main.c get_row.h url_conversion.h stack.h bst.h
 	gcc -c main.c
 
-get_20_rec.o: get_20_rec.c get_20_rec.h url_conversion.h mycurl.h
-	gcc -c get_20_rec.c
+get_row.o: get_row.c get_row.h url_conversion.h
+	gcc -c get_row.c
 
 mycurl.o: mycurl.c mycurl.h
 	gcc -c mycurl.c
