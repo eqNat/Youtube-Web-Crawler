@@ -7,13 +7,10 @@
 
 #include "stack.h"
 #include "bst.h"
-#include "url_conversion.h"
-#include "get_20_rec.h"
 
-struct Row {
-	uint64_t id;
-	uint64_t recommendations[20];
-};
+#include "url_conversion.h"
+#include "mycurl.h"
+#include "get_row.h"
 
 struct T_Data {
 	struct Stack_Node* stack_head;
@@ -27,25 +24,32 @@ void* runner(void* args)
 {
 	struct T_Data* t_data = (struct T_Data*) args;
 	struct Row row;
+	char* html_data;
 
 	while (row.id = pop(&t_data->stack_head)) {
-		if (!get_20_rec(row.id, row.recommendations))
+		char ascii_id[11];
+		html_data = download_webpage(row.id);
+		get_row(html_data, &row);
+		if (row.recommendations[17] == 0) {
+			push(&t_data->stack_head, row.id);
+			printf("pushing %s back.\n", lltourl(row.id, ascii_id));
+			free(html_data);
 			continue;
-
-		mutex_write(&row);
-
-		for (int32_t i = 0; i < 20; i++) {
+		}
+		for (int32_t i = 0; i < 18; i++) {
 			if (row.recommendations[i] && BST_insert(&t_data->bst_head, row.recommendations[i]))
 				push(&t_data->stack_head, row.recommendations[i]);
 		}
+		mutex_write(&row);
+		free(html_data);
 		t_data->row_count++;
-		if (t_data->row_count % 100 == 0)
+		//if (t_data->row_count % 100 == 0)
 			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data->row_count, getBSTCount(), getStackCount());
 	}
 	pthread_exit(0);
 }
 
-#define THREAD_NUM 32
+#define THREAD_NUM 1
 
 int main()
 {
@@ -62,6 +66,7 @@ int main()
 		int32_t size;
 		if ((fd = open("youtube_bin", O_RDONLY, 0755)) != -1) {
 			printf("Loading 'youtube_bin'...\n");
+			// load primary keys
 			while (size = read(fd, &buffer, sizeof(struct Row))) {
 				if (size == -1) {
 					perror("error reading file: ");
@@ -74,9 +79,9 @@ int main()
 				t_data.row_count++;
 			}
 			lseek(fd, 0, SEEK_SET);
-
+			// load foreign keys
 			while (read(fd, &buffer, sizeof(struct Row)))
-				for (int32_t i = 0; i < 20; i++) {
+				for (int32_t i = 0; i < 18; i++) {
 					if (BST_insert(&t_data.bst_head, buffer.recommendations[i]))
 						push(&t_data.stack_head, buffer.recommendations[i]);
 			}

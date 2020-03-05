@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "mycurl.h"
+#include "url_conversion.h"
 
 struct url_data {
     size_t size;
@@ -38,19 +39,19 @@ size_t write_data(void *ptr, size_t size, size_t nmemb, struct url_data *data)
     return size * nmemb;
 }
 
-char *handle_url(char* url)
+char* download_webpage(uint64_t id)
 {
     CURL *curl;
-
+	
 	char full_url[43] = "https://www.youtube.com/watch?v=";
-	strcat(full_url, url);
+	lltourl(id, &full_url[32]);
 
     struct url_data data;
     data.size = 0;
     data.data = malloc(4096); /* reasonable size initial buffer */
-    if(NULL == data.data) {
+    if (NULL == data.data) {
         fprintf(stderr, "Failed to allocate memory.\n");
-        return NULL;
+        //return 0;
     }
 
     data.data[0] = '\0';
@@ -62,12 +63,12 @@ char *handle_url(char* url)
         curl_easy_setopt(curl, CURLOPT_URL, full_url);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-		for (int attempt = 1; attempt <= 10000000; attempt++) {
+		for (int attempt = 1; attempt <= 10; attempt++) {
         	res = curl_easy_perform(curl);
         	if (res == CURLE_OK)
 				break;
 //			if (attempt == 10)
-                fprintf(stderr, "Attempt %d for %s failed: %s\n", attempt, url, curl_easy_strerror(res));
+                fprintf(stderr, "Attempt %d for %s failed: %s\n", attempt, full_url, curl_easy_strerror(res));
 		}
         curl_easy_cleanup(curl);
     }

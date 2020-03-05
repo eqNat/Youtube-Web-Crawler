@@ -31,9 +31,10 @@ char* lltourl(uint64_t id, char* url)
 		else if (temp == 63)
 			temp = '_';
 		else
-			perror("unknown character in lltourl()");
+			fprintf(stderr, "lltourl: unknown character: %c\n", temp);
 		url[10-i] = temp;
 	}
+	url[11] = 0;;
 	return url;
 }
 
@@ -46,7 +47,6 @@ uint64_t urltoll(const char* url)
 	
 	for (int i = 0; i < 11; i++) {
 		temp = url[10 - i];
-		// I should really refactor this
 		if (isupper(temp))
 			temp -= 65;
 		else if (islower(temp))
@@ -58,7 +58,7 @@ uint64_t urltoll(const char* url)
 		else if (temp == '_')
 			temp = 63;
 		else
-			perror("unkown character in urltoll()");
+			fprintf(stderr, "urltoll: unknown character: %c\n", url[10 - i]);
 		temp = (i == 0) ? temp >> 2 : temp << i * 6 - 2;
 		id |= temp;
 	}
