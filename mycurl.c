@@ -67,8 +67,8 @@ char* download_webpage(uint64_t id)
         	res = curl_easy_perform(curl);
         	if (res == CURLE_OK)
 				break;
-//			if (attempt == 10)
-                fprintf(stderr, "Attempt %d for %s failed: %s\n", attempt, full_url, curl_easy_strerror(res));
+			if (attempt == 10)
+                fprintf(stderr, "10 Attempt for %s failed: %s\n", full_url, curl_easy_strerror(res));
 		}
         curl_easy_cleanup(curl);
     }

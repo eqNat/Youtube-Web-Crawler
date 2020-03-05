@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h> 
 
-#include "stack.h"
+#include "queue.h"
 #include "bst.h"
 
 #include "url_conversion.h"
@@ -18,6 +18,8 @@ struct T_Data {
 	uint64_t row_count;
 };
 
+struct Queue* queue;
+
 static inline void mutex_write(struct Row* row);
 
 void* runner(void* args)
@@ -26,30 +28,30 @@ void* runner(void* args)
 	struct Row row;
 	char* html_data;
 
-	while (row.id = pop(&t_data->stack_head)) {
+	while (row.id = pop(queue)) {
 		char ascii_id[11];
 		html_data = download_webpage(row.id);
 		get_row(html_data, &row);
 		if (row.recommendations[17] == 0) {
-			push(&t_data->stack_head, row.id);
+			push(queue, row.id);
 			printf("pushing %s back.\n", lltourl(row.id, ascii_id));
 			free(html_data);
 			continue;
 		}
 		for (int32_t i = 0; i < 18; i++) {
 			if (row.recommendations[i] && BST_insert(&t_data->bst_head, row.recommendations[i]))
-				push(&t_data->stack_head, row.recommendations[i]);
+				push(queue, row.recommendations[i]);
 		}
 		mutex_write(&row);
 		free(html_data);
 		t_data->row_count++;
-		//if (t_data->row_count % 100 == 0)
-			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data->row_count, getBSTCount(), getStackCount());
+		if (t_data->row_count % 100 == 0)
+			printf("rows = %lu, bst = %lu, queue = %lu\n", t_data->row_count, getBSTCount(), getQueueCount());
 	}
 	pthread_exit(0);
 }
 
-#define THREAD_NUM 1
+#define THREAD_NUM 32
 
 int main()
 {
@@ -58,6 +60,8 @@ int main()
 		.bst_head = NULL,
 		.row_count = 0
 	};
+
+	queue = createQueue();
 
 	{// load the 'youtube_bin' file if it exists, else load default video id.
 		char default_id[11] = "nX6SAH3w6UI";
@@ -83,14 +87,14 @@ int main()
 			while (read(fd, &buffer, sizeof(struct Row)))
 				for (int32_t i = 0; i < 18; i++) {
 					if (BST_insert(&t_data.bst_head, buffer.recommendations[i]))
-						push(&t_data.stack_head, buffer.recommendations[i]);
+						push(queue, buffer.recommendations[i]);
 			}
 			close(fd);
-			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data.row_count, getBSTCount(), getStackCount());
+			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data.row_count, getBSTCount(), getQueueCount());
 		} else {
 			printf("No file found: using default id\n");
 			BST_insert(&t_data.bst_head, urltoll(default_id));
-			push(&t_data.stack_head, urltoll(default_id));
+			push(queue, urltoll(default_id));
 			t_data.row_count = 1;
 		}
 	}
@@ -101,7 +105,7 @@ int main()
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, &t_data);
-			while (getStackCount() < 10)
+			while (getQueueCount() < 10)
 			{ /* wait for first thread to push its first set of IDs */ }
 			printf("thread %d in\n", i+1);
 		}
