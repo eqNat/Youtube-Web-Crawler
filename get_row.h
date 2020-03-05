@@ -1,8 +1,9 @@
 #pragma once
 
+#define REC_COUNT 20
 struct Row {
 	uint64_t id;
-	uint64_t recommendations[19];
+	uint64_t recommendations[REC_COUNT];
 };
 
 void get_row(char* html_data, struct Row* row);

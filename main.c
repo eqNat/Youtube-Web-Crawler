@@ -12,19 +12,15 @@
 #include "mycurl.h"
 #include "get_row.h"
 
-struct T_Data {
-	struct Stack_Node* stack_head;
-	struct BST_Node* bst_head;
-	uint64_t row_count;
-};
+#define ROW_COUNT (getBSTCount()-getQueueCount())
 
 struct Queue* queue;
+struct BST_Node* bst_root;
 
 static inline void mutex_write(struct Row* row);
 
 void* runner(void* args)
 {
-	struct T_Data* t_data = (struct T_Data*) args;
 	struct Row row;
 	char* html_data;
 
@@ -32,21 +28,20 @@ void* runner(void* args)
 		char ascii_id[11];
 		html_data = download_webpage(row.id);
 		get_row(html_data, &row);
-		if (row.recommendations[17] == 0) {
+		if (row.recommendations[REC_COUNT-1] == 0) {
 			push(queue, row.id);
 			printf("pushing %s back.\n", lltourl(row.id, ascii_id));
 			free(html_data);
 			continue;
 		}
-		for (int32_t i = 0; i < 18; i++) {
-			if (row.recommendations[i] && BST_insert(&t_data->bst_head, row.recommendations[i]))
+		for (int32_t i = 0; i < REC_COUNT; i++) {
+			if (row.recommendations[i] && BST_insert(&bst_root, row.recommendations[i]))
 				push(queue, row.recommendations[i]);
 		}
 		mutex_write(&row);
 		free(html_data);
-		t_data->row_count++;
-		if (t_data->row_count % 100 == 0)
-			printf("rows = %lu, bst = %lu, queue = %lu\n", t_data->row_count, getBSTCount(), getQueueCount());
+		if (ROW_COUNT % 100 == 0)
+			printf("rows = %lu, bst = %lu, queue = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
 	}
 	pthread_exit(0);
 }
@@ -55,13 +50,8 @@ void* runner(void* args)
 
 int main()
 {
-	struct T_Data t_data = {
-		.stack_head = NULL,
-		.bst_head = NULL,
-		.row_count = 0
-	};
-
 	queue = createQueue();
+	bst_root = NULL;
 
 	{// load the 'youtube_bin' file if it exists, else load default video id.
 		char default_id[11] = "nX6SAH3w6UI";
@@ -76,26 +66,24 @@ int main()
 					perror("error reading file: ");
 					exit(1);
 				}
-				if (!BST_insert(&t_data.bst_head, buffer.id)) {
+				if (!BST_insert(&bst_root, buffer.id)) {
 					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n", buffer.id);
 					exit(1);
 				}
-				t_data.row_count++;
 			}
 			lseek(fd, 0, SEEK_SET);
 			// load foreign keys
 			while (read(fd, &buffer, sizeof(struct Row)))
-				for (int32_t i = 0; i < 18; i++) {
-					if (BST_insert(&t_data.bst_head, buffer.recommendations[i]))
+				for (int32_t i = 0; i < REC_COUNT; i++) {
+					if (BST_insert(&bst_root, buffer.recommendations[i]))
 						push(queue, buffer.recommendations[i]);
 			}
 			close(fd);
-			printf("rows = %lu, bst = %lu, stack = %lu\n", t_data.row_count, getBSTCount(), getQueueCount());
+			printf("rows = %lu, bst = %lu, stack = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
 		} else {
 			printf("No file found: using default id\n");
-			BST_insert(&t_data.bst_head, urltoll(default_id));
+			BST_insert(&bst_root, urltoll(default_id));
 			push(queue, urltoll(default_id));
-			t_data.row_count = 1;
 		}
 	}
 
@@ -104,7 +92,7 @@ int main()
 		for (int32_t i = 0; i < THREAD_NUM; i++) {
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
-			pthread_create(&tids[i], &attr, runner, &t_data);
+			pthread_create(&tids[i], &attr, runner, NULL);
 			while (getQueueCount() < 10)
 			{ /* wait for first thread to push its first set of IDs */ }
 			printf("thread %d in\n", i+1);
