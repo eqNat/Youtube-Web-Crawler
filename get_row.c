@@ -11,7 +11,7 @@
 void get_row(char* html_data, struct Row* row)
 {
 	regex_t exp;
-	char* cursor = html_data;
+	char* cursor = &html_data[100000];
 	int ret = regcomp(&exp, "[A-Za-z0-9_-]{11}\" class=\" content-link", REG_EXTENDED);
 	regmatch_t matches;
 	if (ret)
