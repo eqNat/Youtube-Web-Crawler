@@ -31,7 +31,9 @@ void get_row(char* html_data, uint64_t id)
 			if (BST_insert(&bst_root, row.recommendations[i]))
 				push(queue, row.recommendations[i]);
 		} else {
+#ifdef LOGGING
 				fprintf(stderr, "Innocuous error: Only %d recommendations: pushing back.\n", i);
+#endif
 				push(queue, id);
 				return;
 		}

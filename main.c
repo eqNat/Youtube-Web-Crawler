@@ -91,7 +91,9 @@ int main()
 					exit(1);
 				}
 				if (!BST_insert(&bst_root, buffer.id)) {
-					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n", buffer.id);
+					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n \
+					This may be due to newer commits changing the macro value REC_COUNT found in get_row.h \
+					Either revert REC_COUNT to previous value or remove the youtube.bin file\n", buffer.id);
 					exit(1);
 				}
 			}
