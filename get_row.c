@@ -4,12 +4,19 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <regex.h>
+#include <pthread.h>
 
 #include "get_row.h"
 #include "url_conversion.h"
 
-void get_row(char* html_data, struct Row* row)
+static inline void mutex_write(struct Row* row);
+
+void get_row(char* html_data, uint64_t id)
 {
+	struct Row row = {
+		.id = id
+	};
+
 	regex_t exp;
 	char* cursor = &html_data[100000];
 	int ret = regcomp(&exp, "[A-Za-z0-9_-]{11}\" class=\" content-link", REG_EXTENDED);
@@ -17,16 +24,31 @@ void get_row(char* html_data, struct Row* row)
 	if (ret)
 		printf("regcomp failed with %d\n", ret);
 
-		int flag = 1;
-		for (int i = 0; i < REC_COUNT; i++)
-			if (regexec(&exp, cursor, 1, &matches, 0) == 0) {
-				row->recommendations[i] = urltoll(&cursor[matches.rm_so]);
-				cursor = &cursor[matches.rm_eo];
-			} else {
-				if (flag) {
-					flag = 0;
-					fprintf(stderr, "Only %d recommendations: pushing back.\n", i);
-				}
-				row->recommendations[i] = 0;
-			}
+	for (int i = 0; i < REC_COUNT; i++)
+		if (regexec(&exp, cursor, 1, &matches, 0) == 0) {
+			row.recommendations[i] = urltoll(&cursor[matches.rm_so]);
+			cursor = &cursor[matches.rm_eo];
+			if (BST_insert(&bst_root, row.recommendations[i]))
+				push(queue, row.recommendations[i]);
+		} else {
+				fprintf(stderr, "Innocuous error: Only %d recommendations: pushing back.\n", i);
+				push(queue, id);
+				return;
+		}
+	mutex_write(&row);
+}
+
+pthread_mutex_t lock;
+// I'm sure there is a better way of doing this
+static inline void mutex_write(struct Row* row)
+{
+	int32_t size;
+	pthread_mutex_lock(&lock);
+	int32_t fd = open("youtube.bin", O_WRONLY | O_APPEND | O_CREAT, 0755);
+	if ((size = write(fd, row, sizeof(struct Row))) == -1) {
+		perror("write failed: ");
+		exit(1);
+	}
+	close(fd);
+	pthread_mutex_unlock(&lock);
 }

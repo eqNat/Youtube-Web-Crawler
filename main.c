@@ -16,10 +16,6 @@
 #define ROW_COUNT (getBSTCount()-getQueueCount())
 #define THREAD_NUM 36
 
-struct Queue* queue;
-struct BST_Node* bst_root;
-
-static inline void mutex_write(struct Row* row);
 
 struct call_back_args {
 	char* HTML;
@@ -44,7 +40,7 @@ static size_t write_data(char* data, size_t size, size_t nmemb, struct call_back
 
 void* runner(void* no_args)
 {
-	struct Row row;
+	uint64_t id;
 	char full_url[43] = "https://www.youtube.com/watch?v=";
 	struct call_back_args args = {
 		.HTML = calloc(524288, 1),
@@ -56,29 +52,19 @@ void* runner(void* no_args)
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &args);
 
-	while (row.id = pop(queue))
+	while (id = pop(queue))
 	{
 		args.offset = 0;
 		char ascii_id[11];
 
-		lltourl(row.id, &full_url[32]);
+		lltourl(id, &full_url[32]);
 		curl_easy_setopt(curl, CURLOPT_URL, full_url);
 
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK)
-			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res)),
-			exit(1);
+			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res)), exit(1);
 
-		get_row(args.HTML, &row);
-		if (row.recommendations[REC_COUNT-1] == 0) {
-			push(queue, row.id);
-			continue;
-		}
-		for (int32_t i = 0; i < REC_COUNT; i++) {
-			if (row.recommendations[i] && BST_insert(&bst_root, row.recommendations[i]))
-				push(queue, row.recommendations[i]);
-		}
-		mutex_write(&row);
+		get_row(args.HTML, id);
 		if (ROW_COUNT % 100 == 0)
 			fprintf(stderr, "rows = %lu, bst = %lu, queue = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
 	}
@@ -140,20 +126,4 @@ int main()
 			pthread_join(tids[i], NULL);
 		}
 	}
-}
-
-pthread_mutex_t lock;
-
-static inline void mutex_write(struct Row* row)
-{
-	int32_t size;
-	pthread_mutex_lock(&lock);
-	int32_t fd = open("youtube.bin", O_WRONLY | O_APPEND | O_CREAT, 0755);
-	if ((size = write(fd, row, sizeof(struct Row))) == -1) {
-		perror("write failed: ");
-		exit(1);
-	}
-	close(fd);
-	pthread_mutex_unlock(&lock);
-
 }
