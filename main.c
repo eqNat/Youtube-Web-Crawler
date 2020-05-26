@@ -14,61 +14,51 @@
 #include "get_row.h"
 
 #define ROW_COUNT (getBSTCount()-getQueueCount())
-#define THREAD_NUM 32
+#define THREAD_NUM 36
 
 struct Queue* queue;
 struct BST_Node* bst_root;
 
 static inline void mutex_write(struct Row* row);
 
-struct HTML {
-    size_t size;
-    char* data;
+struct call_back_args {
+	char* HTML;
+	uint32_t offset;
+	uint32_t capacity; // Will reallocate into larger heaps if needed
 };
 
-size_t write_data(void *ptr, size_t size, size_t nmemb, struct HTML *html)
+static size_t write_data(char* data, size_t size, size_t nmemb, struct call_back_args* args)
 {
-    size_t index = html->size;
-    size_t n = (size * nmemb);
-    char* tmp;
+	if (args->offset + nmemb > args->capacity) {
+		args->capacity = args->offset + nmemb;
+		args->HTML = realloc(args->HTML, args->capacity + 1);
+	}
 
-    html->size += (size * nmemb);
-    tmp = realloc(html->data, html->size + 1); /* +1 for '\0' */
+	memcpy(&args->HTML[args->offset], data, nmemb);
+	args->offset += nmemb;
 
-    if(tmp) {
-        html->data = tmp;
-    } else {
-        if(html->data) {
-            free(html->data);
-        }
-        fprintf(stderr, "Failed to allocate memory.\n");
-        return 0;
-    }
+	args->HTML[args->offset] = '\0';
 
-    memcpy((html->data + index), ptr, n);
-    html->data[html->size] = '\0';
-
-    return size * nmemb;
+	return nmemb;
 }
 
-int max_size = 0;
-
-void* runner(void* args)
+void* runner(void* no_args)
 {
 	struct Row row;
-	struct HTML html;
 	char full_url[43] = "https://www.youtube.com/watch?v=";
+	struct call_back_args args = {
+		.HTML = calloc(524288, 1),
+		.capacity = 524287
+	};
 
 	CURL *curl;
 	curl = curl_easy_init();
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &args);
 
-	while (row.id = pop(queue)) {
-		html.data = malloc(4096);
-		html.data[0] = '\0';
-		html.size = 0;
-
+	while (row.id = pop(queue))
+	{
+		args.offset = 0;
 		char ascii_id[11];
 
 		lltourl(row.id, &full_url[32]);
@@ -76,18 +66,12 @@ void* runner(void* args)
 
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK)
-			fprintf(stderr, "ERROR: curl_easy_perform failed\n"),
+			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res)),
 			exit(1);
 
-		if (max_size < html.size) {
-			max_size = html.size;
-			fprintf(stderr, "new max size: %s, %d\n", full_url, max_size);
-		}
-
-		get_row(html.data, &row);
+		get_row(args.HTML, &row);
 		if (row.recommendations[REC_COUNT-1] == 0) {
 			push(queue, row.id);
-			free(html.data);
 			continue;
 		}
 		for (int32_t i = 0; i < REC_COUNT; i++) {
@@ -95,7 +79,6 @@ void* runner(void* args)
 				push(queue, row.recommendations[i]);
 		}
 		mutex_write(&row);
-		free(html.data);
 		if (ROW_COUNT % 100 == 0)
 			fprintf(stderr, "rows = %lu, bst = %lu, queue = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
 	}
