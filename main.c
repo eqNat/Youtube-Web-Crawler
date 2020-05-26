@@ -48,6 +48,7 @@ void* runner(void* no_args)
 	curl = curl_easy_init();
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &args);
+	CURLcode res;
 
 	while (id = pop(queue))
 	{
@@ -57,13 +58,13 @@ void* runner(void* no_args)
 		lltourl(id, &full_url[32]);
 		curl_easy_setopt(curl, CURLOPT_URL, full_url);
 
-		CURLcode res = curl_easy_perform(curl);
-		if (res != CURLE_OK)
-			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res)), exit(1);
+		if (res = curl_easy_perform(curl) != CURLE_OK)
+			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res));
 
 		HTML_handler(args.HTML, id);
+
 		if (ROW_COUNT % 100 == 0)
-			fprintf(stderr, "rows = %lu, bst = %lu, queue = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
+			fprintf(stderr, "IDs processed = %lu, waiting = %lu, total = %lu\n", ROW_COUNT, getQueueCount(), getBSTCount());
 	}
 	curl_easy_cleanup(curl);
 	pthread_exit(0);
@@ -89,8 +90,8 @@ int main()
 				}
 				if (!BST_insert(&bst_root, buffer.id)) {
 					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n \
-					This may be due to newer commits changing the macro value REC_COUNT found in HTML_handler.h \
-					Either revert REC_COUNT to previous value or remove the youtube.bin file\n", buffer.id);
+					This may be due to a newer commit changing the macro value REC_COUNT found in HTML_handler.h \
+					Either revert REC_COUNT to previous value or simply remove the youtube.bin file\n", buffer.id);
 					exit(1);
 				}
 			}
@@ -102,9 +103,9 @@ int main()
 						push(queue, buffer.recommendations[i]);
 			}
 			close(fd);
-			fprintf(stderr, "rows = %lu, bst = %lu, stack = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
+			fprintf(stderr, "youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n", ROW_COUNT, getQueueCount(), getBSTCount());
 		} else {
-			fprintf(stderr, "No file found: using default id\n");
+			fprintf(stderr, "No file found. Using default ID\n");
 			BST_insert(&bst_root, urltoll(default_id));
 			push(queue, urltoll(default_id));
 		}
@@ -117,7 +118,7 @@ int main()
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, NULL);
 			while (getQueueCount() < 10)
-			{ /* wait for first thread to push its first set of IDs */ }
+			{ /* wait for first thread to push its first set of recommendations */ }
 			fprintf(stderr, "thread %d in\n", i+1);
 		}
 
