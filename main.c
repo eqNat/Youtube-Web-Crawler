@@ -8,7 +8,7 @@
 #include <curl/curl.h>
 
 #include "url_conversion.h"
-#include "get_row.h"
+#include "HTML_handler.h"
 
 #define ROW_COUNT (getBSTCount()-getQueueCount())
 #define THREAD_NUM 36
@@ -61,7 +61,7 @@ void* runner(void* no_args)
 		if (res != CURLE_OK)
 			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res)), exit(1);
 
-		get_row(args.HTML, id);
+		HTML_handler(args.HTML, id);
 		if (ROW_COUNT % 100 == 0)
 			fprintf(stderr, "rows = %lu, bst = %lu, queue = %lu\n", ROW_COUNT, getBSTCount(), getQueueCount());
 	}
@@ -89,7 +89,7 @@ int main()
 				}
 				if (!BST_insert(&bst_root, buffer.id)) {
 					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n \
-					This may be due to newer commits changing the macro value REC_COUNT found in get_row.h \
+					This may be due to newer commits changing the macro value REC_COUNT found in HTML_handler.h \
 					Either revert REC_COUNT to previous value or remove the youtube.bin file\n", buffer.id);
 					exit(1);
 				}
