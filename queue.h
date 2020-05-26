@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-struct Queue;
+struct Queue* queue;
 
 struct Queue* createQueue();
 

@@ -7,9 +7,6 @@
 #include <fcntl.h> 
 #include <curl/curl.h>
 
-#include "queue.h"
-#include "bst.h"
-
 #include "url_conversion.h"
 #include "get_row.h"
 
