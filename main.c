@@ -73,8 +73,6 @@ void* runner(void* no_args)
 
 int main()
 {
-	bst_root = NULL;
-	char id[11] = "nX6SAH3w6UI";
 	{// load the 'youtube.bin' file if it exists, else load default video id.
 		char default_id[11] = "nX6SAH3w6UI";
 		struct Row buffer;
@@ -88,7 +86,7 @@ int main()
 					perror("error reading file: ");
 					exit(1);
 				}
-				if (!BST_insert(&bst_root, buffer.id)) {
+				if (!BST_insert(buffer.id)) {
 					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n \
 					This may be due to a newer commit changing the macro value REC_COUNT found in HTML_handler.h \
 					Either revert REC_COUNT to previous value or simply remove the youtube.bin file\n", buffer.id);
@@ -99,14 +97,14 @@ int main()
 			// load foreign keys
 			while (read(fd, &buffer, sizeof(struct Row)))
 				for (int32_t i = 0; i < REC_COUNT; i++) {
-					if (BST_insert(&bst_root, buffer.recommendations[i]))
+					if (BST_insert(buffer.recommendations[i]))
 						push(buffer.recommendations[i]);
 			}
 			close(fd);
 			fprintf(stderr, "youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n", ROW_COUNT, getQCount(), getBSTCount());
 		} else {
 			fprintf(stderr, "No file found. Using default ID\n");
-			BST_insert(&bst_root, urltoll(default_id));
+			BST_insert(urltoll(default_id));
 			push(urltoll(default_id));
 		}
 	}

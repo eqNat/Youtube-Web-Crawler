@@ -28,7 +28,7 @@ void HTML_handler(char* html_data, uint64_t id)
 		if (regexec(&exp, cursor, 1, &matches, 0) == 0) {
 			row.recommendations[i] = urltoll(&cursor[matches.rm_so]);
 			cursor = &cursor[matches.rm_eo];
-			if (BST_insert(&bst_root, row.recommendations[i]))
+			if (BST_insert(row.recommendations[i]))
 				push(row.recommendations[i]);
 		} else {
 #ifdef LOGGING
