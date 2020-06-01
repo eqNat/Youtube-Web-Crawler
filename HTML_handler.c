@@ -18,7 +18,7 @@ void HTML_handler(char* html_data, uint64_t id)
 	};
 
 	regex_t exp;
-	char* cursor = &html_data[100000];
+	char* cursor = html_data;
 	int ret = regcomp(&exp, "[A-Za-z0-9_-]{11}\" class=\" content-link", REG_EXTENDED);
 	regmatch_t matches;
 	if (ret)
@@ -29,12 +29,12 @@ void HTML_handler(char* html_data, uint64_t id)
 			row.recommendations[i] = urltoll(&cursor[matches.rm_so]);
 			cursor = &cursor[matches.rm_eo];
 			if (BST_insert(&bst_root, row.recommendations[i]))
-				push(queue, row.recommendations[i]);
+				push(row.recommendations[i]);
 		} else {
 #ifdef LOGGING
 				fprintf(stderr, "Innocuous error: Only %d recommendations: pushing back.\n", i);
 #endif
-				push(queue, id);
+				push(id);
 				return;
 		}
 	mutex_write(&row);

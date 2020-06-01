@@ -2,12 +2,11 @@
 
 #include <stdint.h>
 
-struct Queue* queue;
+// Don't push in the value 0, since 0 is returned for 'pop' when the queue is empty
+void push(uint64_t data);
 
-struct Queue* createQueue();
+// returns 0 if queue is empty
+// else, returns popped value
+uint64_t pop();
 
-void push(struct Queue* q, uint64_t k);
-
-uint64_t pop(struct Queue* q);
-
-uint64_t getQueueCount();
+uint64_t getQCount();

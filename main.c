@@ -9,22 +9,22 @@
 
 #include "url_conversion.h"
 #include "HTML_handler.h"
+#include "callbacks_for_callback.h"
 
-#define ROW_COUNT (getBSTCount()-getQueueCount())
+#define ROW_COUNT (getBSTCount()-getQCount())
 #define THREAD_NUM 36
-
 
 struct call_back_args {
 	char* HTML;
 	uint32_t offset;
-	uint32_t capacity; // Will reallocate into larger heaps if needed
+	uint32_t max_offset; // Will reallocate into larger heaps if needed
 };
 
 static size_t write_data(char* data, size_t size, size_t nmemb, struct call_back_args* args)
 {
-	if (args->offset + nmemb > args->capacity) {
-		args->capacity = args->offset + nmemb;
-		args->HTML = realloc(args->HTML, args->capacity + 1);
+	if (args->offset + nmemb > args->max_offset) {
+		args->max_offset = args->offset + nmemb;
+		args->HTML = realloc(args->HTML, args->max_offset + 1);
 	}
 
 	memcpy(&args->HTML[args->offset], data, nmemb);
@@ -41,7 +41,7 @@ void* runner(void* no_args)
 	char full_url[43] = "https://www.youtube.com/watch?v=";
 	struct call_back_args args = {
 		.HTML = calloc(524288, 1),
-		.capacity = 524287
+		.max_offset = 524287
 	};
 
 	CURL *curl;
@@ -50,7 +50,7 @@ void* runner(void* no_args)
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &args);
 	CURLcode res;
 
-	while (id = pop(queue))
+	while (id = pop())
 	{
 		args.offset = 0;
 		char ascii_id[11];
@@ -64,7 +64,8 @@ void* runner(void* no_args)
 		HTML_handler(args.HTML, id);
 
 		if (ROW_COUNT % 100 == 0)
-			fprintf(stderr, "IDs processed = %lu, waiting = %lu, total = %lu\n", ROW_COUNT, getQueueCount(), getBSTCount());
+			fprintf(stderr, "IDs processed = %lu, waiting = %lu, total = %lu\n",
+			ROW_COUNT, getQCount(), getBSTCount());
 	}
 	curl_easy_cleanup(curl);
 	pthread_exit(0);
@@ -72,9 +73,8 @@ void* runner(void* no_args)
 
 int main()
 {
-	queue = createQueue();
 	bst_root = NULL;
-
+	char id[11] = "nX6SAH3w6UI";
 	{// load the 'youtube.bin' file if it exists, else load default video id.
 		char default_id[11] = "nX6SAH3w6UI";
 		struct Row buffer;
@@ -100,14 +100,14 @@ int main()
 			while (read(fd, &buffer, sizeof(struct Row)))
 				for (int32_t i = 0; i < REC_COUNT; i++) {
 					if (BST_insert(&bst_root, buffer.recommendations[i]))
-						push(queue, buffer.recommendations[i]);
+						push(buffer.recommendations[i]);
 			}
 			close(fd);
-			fprintf(stderr, "youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n", ROW_COUNT, getQueueCount(), getBSTCount());
+			fprintf(stderr, "youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n", ROW_COUNT, getQCount(), getBSTCount());
 		} else {
 			fprintf(stderr, "No file found. Using default ID\n");
 			BST_insert(&bst_root, urltoll(default_id));
-			push(queue, urltoll(default_id));
+			push(urltoll(default_id));
 		}
 	}
 
@@ -117,9 +117,9 @@ int main()
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, NULL);
-			while (getQueueCount() < 10)
-			{ /* wait for first thread to push its first set of recommendations */ }
 			fprintf(stderr, "thread %d in\n", i+1);
+			while (getQCount() < 10)
+			{ /* wait for first thread to push its first set of recommendations */ }
 		}
 
 		for (int32_t i = 0; i < THREAD_NUM; i++) {
