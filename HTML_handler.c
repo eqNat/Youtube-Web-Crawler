@@ -19,7 +19,7 @@ void HTML_handler(char* html_data, uint64_t id)
 
 	regex_t exp;
 	char* cursor = html_data;
-	int ret = regcomp(&exp, "[A-Za-z0-9_-]{11}\" class=\" content-link", REG_EXTENDED);
+	int ret = regcomp(&exp, "[A-Za-z0-9_-]{11}classcontent-link", REG_EXTENDED);
 	regmatch_t matches;
 	if (ret)
 		printf("regcomp failed with %d\n", ret);

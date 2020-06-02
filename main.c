@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h> 
 #include <curl/curl.h>
+#include <ctype.h>
 
 #include "url_conversion.h"
 #include "HTML_handler.h"
@@ -15,7 +16,7 @@
 #define THREAD_NUM 36
 
 struct call_back_args {
-	char* HTML;
+	char* filtered_HTML; // contains only alphanumerics, hypens and underscores
 	uint32_t offset;
 	uint32_t max_offset; // Will reallocate into larger heaps if needed
 };
@@ -24,13 +25,17 @@ static size_t write_data(char* data, size_t size, size_t nmemb, struct call_back
 {
 	if (args->offset + nmemb > args->max_offset) {
 		args->max_offset = args->offset + nmemb;
-		args->HTML = realloc(args->HTML, args->max_offset + 1);
+		args->filtered_HTML = realloc(args->filtered_HTML, args->max_offset + 1);
 	}
 
-	memcpy(&args->HTML[args->offset], data, nmemb);
-	args->offset += nmemb;
+//	memcpy(&args->filtered_HTML[args->offset], data, nmemb);
+//	args->offset += nmemb;
 
-	args->HTML[args->offset] = '\0';
+	for (uint32_t i = 0; i < nmemb; i++)
+		if (isalnum(data[i]) || data[i] == '-' || data[i] == '_')
+			args->filtered_HTML[args->offset++] = data[i];
+
+	args->filtered_HTML[args->offset] = '\0';
 
 	return nmemb;
 }
@@ -40,7 +45,7 @@ void* runner(void* no_args)
 	uint64_t id;
 	char full_url[43] = "https://www.youtube.com/watch?v=";
 	struct call_back_args args = {
-		.HTML = calloc(524288, 1),
+		.filtered_HTML = calloc(524288, 1),
 		.max_offset = 524287
 	};
 
@@ -61,7 +66,7 @@ void* runner(void* no_args)
 		if (res = curl_easy_perform(curl) != CURLE_OK)
 			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res));
 
-		HTML_handler(args.HTML, id);
+		HTML_handler(args.filtered_HTML, id);
 
 		if (ROW_COUNT % 100 == 0)
 			fprintf(stderr, "IDs processed = %lu, waiting = %lu, total = %lu\n",
@@ -101,7 +106,8 @@ int main()
 						push(buffer.recommendations[i]);
 			}
 			close(fd);
-			fprintf(stderr, "youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n", ROW_COUNT, getQCount(), getBSTCount());
+			fprintf(stderr, "youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n",
+			        ROW_COUNT, getQCount(), getBSTCount());
 		} else {
 			fprintf(stderr, "No file found. Using default ID\n");
 			BST_insert(urltoll(default_id));
