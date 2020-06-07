@@ -21,7 +21,7 @@ void HTML_handler(char* html_data, uint64_t id)
 
 	for (int i = 0; i < REC_COUNT; i++)
 		if (cursor = strstr(cursor, ">\n    <a href=\"/watch?v=")) {
-			row.recommendations[i] = urltoll(cursor++ + 24);
+			row.recommendations[i] = decode64(cursor++ + 24);
 			if (BST_insert(row.recommendations[i]))
 				push(row.recommendations[i]);
 		} else {

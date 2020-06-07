@@ -54,7 +54,7 @@ void* runner(void* no_args)
 	{
 		args.offset = 0;
 
-		lltourl(id, &full_url[32]);
+		encode64(id, &full_url[32]);
 		curl_easy_setopt(curl, CURLOPT_URL, full_url);
 
 		if (res = curl_easy_perform(curl) != CURLE_OK)
@@ -104,8 +104,8 @@ int main()
 			        ROW_COUNT, getQCount(), getBSTCount());
 		} else {
 			printf("No file found. Using default ID\n");
-			BST_insert(urltoll(default_id));
-			push(urltoll(default_id));
+			BST_insert(decode64(default_id));
+			push(decode64(default_id));
 		}
 	}
 

@@ -9,17 +9,11 @@
 // This is how I learned to convert a Youtube ID to a 64 bit integer:
 // https://webapps.stackexchange.com/a/101153
 
-char* lltourl(uint64_t id, char* url)
+char* encode64(uint64_t id, char* url)
 {
-	uint8_t temp;
+	uint8_t temp = (id & 0xF) << 2;
+	id >>= 4;
 	for (int i = 0; i < 11; i++) {
-		if (i == 0) {
-			temp = (id & 0xF) << 2;
-			id >>= 4;
-		} else {
-			temp = (uint64_t)(id % 64);
-			id >>= 6;
-		}
 		if (temp < 26)
 			temp += 65;
 		else if (temp < 52)
@@ -31,14 +25,16 @@ char* lltourl(uint64_t id, char* url)
 		else if (temp == 63)
 			temp = '_';
 		else
-			fprintf(stderr, "lltourl: unknown character: %c\n", temp);
+			fprintf(stderr, "Error encode64: unknown character: %c\n", temp), exit(1);
 		url[10-i] = temp;
+		temp = (uint64_t)(id % 64);
+		id >>= 6;
 	}
-	url[11] = 0;;
+	url[11] = 0;
 	return url;
 }
 
-uint64_t urltoll(const char* url)
+uint64_t decode64(const char* url)
 {
 	uint64_t id = 0;
 	uint64_t temp;
@@ -58,8 +54,8 @@ uint64_t urltoll(const char* url)
 		else if (temp == '_')
 			temp = 63;
 		else
-			fprintf(stderr, "urltoll: unknown character: %c\n", url[10 - i]);
-		temp = (i == 0) ? temp >> 2 : temp << i * 6 - 2;
+			fprintf(stderr, "decode64: unknown character: %c\n", url[10 - i]);
+		temp = (i) ? temp << i * 6 - 2: temp >> 2;
 		id |= temp;
 	}
 	return id;
