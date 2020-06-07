@@ -1,14 +1,14 @@
-main: main.o bst.o queue.o HTML_handler.o url_conversion.o
-	gcc main.o bst.o queue.o HTML_handler.o url_conversion.o -lcurl -pthread -o main
+main: main.o bst.o queue.o HTML_handler.o base64.o
+	gcc main.o bst.o queue.o HTML_handler.o base64.o -lcurl -pthread -o main
 
-main.o: main.c HTML_handler.h url_conversion.h queue.h bst.h
+main.o: main.c HTML_handler.h base64.h queue.h bst.h
 	gcc -c main.c
 
-HTML_handler.o: HTML_handler.c HTML_handler.h url_conversion.h
+HTML_handler.o: HTML_handler.c HTML_handler.h base64.h
 	gcc -c HTML_handler.c
 
-url_conversion.o: url_conversion.c url_conversion.h
-	gcc -c url_conversion.c
+base64.o: base64.c base64.h
+	gcc -c base64.c
 
 queue.o: queue.c queue.h
 	gcc -c queue.c

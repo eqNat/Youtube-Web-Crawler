@@ -7,7 +7,7 @@
 #include <pthread.h>
 
 #include "HTML_handler.h"
-#include "url_conversion.h"
+#include "base64.h"
 
 static inline void mutex_write(struct Row* row);
 
@@ -18,11 +18,10 @@ void HTML_handler(char* html_data, uint64_t id)
 	};
 
 	char* cursor = html_data;
-	// int ret = regcomp(&exp, "[A-Za-z0-9_-]{11}classcontent-link", REG_EXTENDED);
 
 	for (int i = 0; i < REC_COUNT; i++)
-		if (cursor = strstr(cursor, "classcontent-link")) {
-			row.recommendations[i] = urltoll(cursor++ - 11);
+		if (cursor = strstr(cursor, ">\n    <a href=\"/watch?v=")) {
+			row.recommendations[i] = urltoll(cursor++ + 24);
 			if (BST_insert(row.recommendations[i]))
 				push(row.recommendations[i]);
 		} else {
