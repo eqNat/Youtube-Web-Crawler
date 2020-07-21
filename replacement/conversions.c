@@ -106,28 +106,3 @@ uint64_t decode64(const char* url)
 	}
 	return id;
 }
-
-__int128 decode128(const char* url)
-{
-	__int128 id = 0;
-	uint64_t temp;
-
-	for (int i = 0; i < 22; i++) {
-		temp = url[21 - i];
-		if (isupper(temp))
-			temp -= 65;
-		else if (islower(temp))
-			temp -= 71;
-		else if (isdigit(temp))
-			temp += 4;
-		else if (temp == '-')
-			temp = 62;
-		else if (temp == '_')
-			temp = 63;
-		else
-			fprintf(stderr, "Error decode128: unknown character: %c\n", url[21 - i]);
-		temp = (i) ? temp << i * 6 - 2: temp >> 2;
-		id |= temp;
-	}
-	return id;
-}

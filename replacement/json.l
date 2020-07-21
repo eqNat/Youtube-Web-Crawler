@@ -24,8 +24,8 @@ struct Video_Row vRow = {
 
 %s WINDOW
 %s PRIMARY_INFO
-%s SECOND_RENDERER
-%s SECOND_RESULTS
+%s SECONDARY_RENDERER
+%s SECONDARY_RESULTS
 %s COMPACT_VIDEO_RENDERER
 
 %%
@@ -41,39 +41,47 @@ struct Video_Row vRow = {
 <PRIMARY_INFO>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
 		memcpy(vRow.title, yytext+26, yyleng-25);
+		printf("Title: %s\n", vRow.title);
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
 		vRow.views = stringToInt64(yytext+27);
+		printf("Views: %ld\n", vRow.views);
 	}
 	"\"tooltip\":\""[0-9,]+" / "[0-9,]+ {
 		yytext += 11;
 		vRow.likes = stringToInt64(yytext);
 		yytext = strstr(yytext, "/");
 		vRow.dislikes = stringToInt64(yytext+2);
+		printf("Likes: %ld\n", vRow.likes);
+		printf("Dislikes: %ld\n", vRow.dislikes);
 	}
 	"\"videoSecondaryInfoRenderer\"" {
 		yy_pop_state();
-		yy_push_state(SECOND_RENDERER);
+		yy_push_state(SECONDARY_RENDERER);
 	}
 }
 
-<SECOND_RENDERER>{
+<SECONDARY_RENDERER>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
 		memcpy(cRow.name, yytext+26, yyleng-25);
+		printf("Channel name: %s\n", cRow.name);
 	}
 	"\"url\":\"/channel/UC"[0-9a-zA-Z_-]{22} {
-		cRow.id = decode128(yytext+18);
+		cRow.id.l_half = decode64(yytext+18);
+		cRow.id.r_half = decode64(yytext+29);
+		printf("channel ID (base-64) %s, (base-16) %lx%lx\n", yytext+18, cRow.id.l_half, cRow.id.r_half);
 	}
 	"\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
 		cRow.subscribers = approximateSubs(yytext+40);
+		printf("subscribers (Three significant figures): %ld\n", cRow.subscribers);
 	}
 	"\"secondaryResults\"" {
 		yy_pop_state();
-		yy_push_state(SECOND_RESULTS);
+		yy_push_state(SECONDARY_RESULTS);
 	}
 }
 
-<SECOND_RESULTS>{
+<SECONDARY_RESULTS>{
 	"\"compactVideoRenderer\"" {
 		yy_push_state(COMPACT_VIDEO_RENDERER);
 	}
@@ -82,6 +90,7 @@ struct Video_Row vRow = {
 <COMPACT_VIDEO_RENDERER>{
 	"\"videoId\": \""[0-9a-zA-Z_-]{11} {
 		vRow.recommendations[rec_count] = decode64(yytext+12);
+		printf("rec %d :(base-64)%s, (base-16)%lx\n", rec_count+1, yytext+12, vRow.recommendations[rec_count]);
 		yy_pop_state();
 		if (++rec_count == 18)
 			return 1;
