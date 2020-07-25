@@ -1,10 +1,10 @@
 json: main.o lex.yy.o conversions.o panic.o
-	gcc -o json main.o lex.yy.o conversions.o panic.o
+	gcc -o json main.o lex.yy.o conversions.o panic.o -lssl -lcrypto
 
 main.o: main.c json.h
 	gcc -c main.c
 
-lex.yy.o: json.l json.h conversions.h
+lex.yy.o: json.l json.h conversions.h panic.h
 	flex json.l
 	gcc -c lex.yy.c -lfl
 	rm lex.yy.c
