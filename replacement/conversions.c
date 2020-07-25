@@ -5,6 +5,7 @@
 #include <ctype.h>
 
 #include "conversions.h"
+#include "panic.h"
 
 // Youtube shows sub counts only to three significant digits.
 int64_t approximateSubs(char* string)
@@ -32,7 +33,7 @@ int64_t stringToInt64(const char *str)
 		i++;
 	
 	if (!isdigit(str[i]))
-		fprintf(stderr, "Error stringToInt64: Invalid input\n"), exit(1);
+		PANIC("invalid input");
 	
 	do {
 		to_return *= 10; // unnecessary to multiply on first loop.
@@ -71,7 +72,7 @@ char* encode64(uint64_t id, char* url)
 		else if (temp == 63)
 			temp = '_';
 		else
-			fprintf(stderr, "Error encode64: unknown character: %c\n", temp), exit(1);
+			PANIC("unknown character: %c\n", temp);
 		url[10-i] = temp;
 		temp = (uint64_t)(id % 64);
 		id >>= 6;
@@ -100,7 +101,7 @@ uint64_t decode64(const char* url)
 		else if (temp == '_')
 			temp = 63;
 		else
-			fprintf(stderr, "Error decode64: unknown character: %c\n", url[10 - i]);
+			PANIC("unknown character: %c\n", url[10 - i]);
 		temp = (i) ? temp << i * 6 - 2: temp >> 2;
 		id |= temp;
 	}

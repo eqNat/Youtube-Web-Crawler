@@ -1,5 +1,5 @@
-json: main.o lex.yy.o conversions.o
-	gcc -o json main.o lex.yy.o conversions.o
+json: main.o lex.yy.o conversions.o panic.o
+	gcc -o json main.o lex.yy.o conversions.o panic.o
 
 main.o: main.c json.h
 	gcc -c main.c
@@ -10,8 +10,11 @@ lex.yy.o: lex.yy.c conversions.h
 lex.yy.c: json.l json.h
 	flex json.l
 
-conversions.o: conversions.c conversions.h
+conversions.o: conversions.c conversions.h panic.h
 	gcc -c conversions.c
+
+panic.o: panic.c panic.h
+	gcc -c panic.c
 
 clean:
 	rm json lex.yy.c *.o
