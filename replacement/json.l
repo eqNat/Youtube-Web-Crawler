@@ -6,6 +6,8 @@
 #include "json.h"
 #include "conversions.h"
 #include "panic.h"
+#include "queue.h"
+#include "hash_table.h"
 
 #undef YY_INPUT
 #define YY_INPUT(buf, result, max_size) result = SSL_read(ssl, buf, max_size)
@@ -73,10 +75,13 @@ struct Video_Row vRow = {
 		PANIC("SSL_connect() failed.");
 	}
 
-	char request[] = "GET /watch?v=3nrLc_JOF7k HTTP/1.1\r\n"
+	char request[] = "GET /watch?v=########### HTTP/1.1\r\n"
 	                 "Host: www.youtube.com:443\r\n"
 	                 "Connection: close\r\n"
 	                 "User-Agent: https_simple\r\n\r\n";
+	
+	encode64(pop(), request+13);
+	printf("request: %s\n", request);
 
 	SSL_write(ssl, request, sizeof(request)-1);
  }

@@ -77,7 +77,6 @@ char* encode64(uint64_t id, char* url)
 		temp = (uint64_t)(id % 64);
 		id >>= 6;
 	}
-	url[11] = 0;
 	return url;
 }
 
