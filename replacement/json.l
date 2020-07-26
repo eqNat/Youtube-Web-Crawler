@@ -15,15 +15,11 @@
 SSL *ssl;
 
 extern void yyerror(const char *message);
-int rec_count = 0;
+
+int rec_count;
 
 struct Channel_Row cRow;
-
-struct Video_Row vRow = {
-	.likes = -1,
-	.dislikes = -1,
-	.channel_fk = &(cRow.id)
-};
+struct Video_Row vRow;
 
 %}
 
@@ -34,12 +30,21 @@ struct Video_Row vRow = {
 %s PRIMARY_INFO
 %s SECONDARY_RENDERER
 %s SECONDARY_RESULTS
+%s METADATA
 %s COMPACT_VIDEO_RENDERER
 
 %%
+ rec_count = 0;
+
+ vRow.likes = -1;
+ vRow.dislikes = -1;
+ vRow.channel_fk = &(cRow.id);
+
  int server;
  SSL_CTX *ctx;
  {//initialize
+	if ((vRow.id = pop()) == 0)
+		return 0;
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
 	SSL_load_error_strings();
@@ -80,7 +85,7 @@ struct Video_Row vRow = {
 	                 "Connection: close\r\n"
 	                 "User-Agent: https_simple\r\n\r\n";
 	
-	encode64(pop(), request+13);
+	encode64(vRow.id, request+13);
 	printf("request: %s\n", request);
 
 	SSL_write(ssl, request, sizeof(request)-1);
@@ -131,9 +136,23 @@ struct Video_Row vRow = {
 		cRow.subscribers = approximateSubs(yytext+40);
 		printf("subscribers (Three significant figures): %ld\n", cRow.subscribers);
 	}
+	"\"metadataRowContainer\"" {
+		yy_push_state(METADATA);
+	}
 	"\"secondaryResults\"" {
 		yy_pop_state();
 		yy_push_state(SECONDARY_RESULTS);
+	}
+}
+
+<METADATA>{
+	"\"text\":\"Age-restricted video" {
+		printf("Age-restricted video\n");
+		return 1;
+	}
+
+	"\"collapsedItemCount\"" {
+		yy_pop_state();
 	}
 }
 
@@ -156,6 +175,11 @@ struct Video_Row vRow = {
 			return 1;
 		}
 	}
+}
+
+"\"currentVideoEndpoint\"" {
+	char id[11];
+	PANIC("rec_count = %d for id %.11s\n", rec_count, encode64(vRow.id, id));
 }
 
 [ \t\n]+          /* ignore whitespace */
