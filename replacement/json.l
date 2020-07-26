@@ -24,6 +24,7 @@ struct Video_Row vRow;
 int queue_count = 0;
 int hash_count = 0;
 
+
 %}
 
 %option noyywrap
@@ -46,12 +47,14 @@ int hash_count = 0;
  int server;
  SSL_CTX *ctx;
  {//initialize
-	if ((vRow.id = pop()) == 0)
-		return 0;
-	queue_count--;
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
 	SSL_load_error_strings();
+	if ((vRow.id = pop()) == 0) {
+		printf("queue empty\n");
+		return 0;
+	}
+	queue_count--;
 
 	ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx)
@@ -151,6 +154,10 @@ int hash_count = 0;
 <METADATA>{
 	"\"text\":\"Age-restricted video" {
 		//printf("Age-restricted video\n");
+		SSL_shutdown(ssl);
+		close(server);
+		SSL_free(ssl);
+		SSL_CTX_free(ctx);
 		return 1;
 	}
 
@@ -188,7 +195,15 @@ int hash_count = 0;
 
 "\"currentVideoEndpoint\"" {
 	char id[11];
-	PANIC("rec_count = %d for id %.11s\n", rec_count, encode64(vRow.id, id));
+	if (rec_count == 0)
+		PANIC("rec_count = 0 for id %.11s", encode64(vRow.id, id));
+	SSL_shutdown(ssl);
+	close(server);
+	SSL_free(ssl);
+	SSL_CTX_free(ctx);
+	push(vRow.id);
+	queue_count++;
+	return 1;
 }
 
 [ \t\n]+          /* ignore whitespace */

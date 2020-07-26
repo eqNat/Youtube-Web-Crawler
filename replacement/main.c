@@ -18,4 +18,6 @@ int main(int argc, char *argv[])
 	video_insert(start_id_int);
 
 	while (yylex());
+
+	printf("yylex returned 0\n");
 }
