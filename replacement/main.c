@@ -29,12 +29,12 @@ int main()
 
 		char *sql_create = "CREATE TABLE IF NOT EXISTS videos ("
 		"id INTEGER(64) PRIMARY KEY,"
-		"title VARCHAR(100) NOT NULL,"
-		"views INTEGER(64)," // should be NULL if and only if video is livestream OR title = 'Youtube Movies'
-		"likes INTEGER(64),"    // should be NULL if and only if ratings are disabled
-		"dislikes INTEGER(64)," //
-		"lchannel_id INTEGER(64) NOT NULL,"
-		"rchannel_id INTEGER(64) NOT NULL,"
+		"title VARCHAR(100)," // should be NULL if and only if video is private
+		"views INTEGER(64)," // should be NULL if and only if video is livestream OR title = 'Youtube Movies' OR private
+		"likes INTEGER(64),"    // should be NULL if and only if ratings are disabled OR private
+		"dislikes INTEGER(64)," // 
+		"lchannel_id INTEGER(64)," // should be NULL if and only if video is private
+		"rchannel_id INTEGER(64)," //
 		"rec_1 INTEGER(64),"    // should be NULL if and only if video is age-restricted
 		"rec_2 INTEGER(64),"    //
 		"rec_3 INTEGER(64),"    //

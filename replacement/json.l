@@ -46,7 +46,8 @@ _Bool ratings_found;
 %option noyywrap
 %option stack
 
-%s WINDOW
+%s YTINITIALDATA
+%s YTINITIALPLAYERRESPONSE
 %s PRIMARY_INFO
 %s SECONDARY_RENDERER
 %s SECONDARY_RESULTS
@@ -122,11 +123,34 @@ _Bool ratings_found;
  }
 
 "window[\"ytInitialData\"] = " {
-	yy_push_state(WINDOW);
+	yy_push_state(YTINITIALDATA);
 }
 
-<WINDOW>"\"videoPrimaryInfoRenderer\"" {
-	yy_push_state(PRIMARY_INFO);
+<YTINITIALDATA>{
+	"\"videoPrimaryInfoRenderer\"" {
+		yy_push_state(PRIMARY_INFO);
+	}
+	"window[\"ytInitialPlayerResponse\"]" {
+		yy_push_state(YTINITIALPLAYERRESPONSE);
+	}
+}
+
+<YTINITIALPLAYERRESPONSE>{
+	"\"reason\":{\"simpleText\":\"Private video\"}" {
+		for (int i = 2; i < 26; i++)
+			sqlite3_bind_null(res, i);
+
+		int status;
+		if ((status = sqlite3_step(res)) != SQLITE_DONE)
+			PANIC("sqlite3_step returned %d", status);
+
+		SSL_shutdown(ssl);
+		close(server);
+		SSL_free(ssl);
+		SSL_CTX_free(ctx);
+		printf("Private");
+		return 1;
+	}
 }
 
 <PRIMARY_INFO>{
@@ -230,11 +254,17 @@ _Bool ratings_found;
 	}
 }
 
-"\"currentVideoEndpoint\"" {
+"\"currentVideoEndpoint\""|"</body>" {
 	char id_str[11];
+
+	// debuging
+	if (yytext[0] == '<')
+		fprintf(stderr, "current video end point not found: ");
 	if (rec_count == 0) {
-		fprintf(stderr, "%.11s%\n", encode64(id, id_str));
+		fprintf(stderr, "%.11s%", encode64(id, id_str));
 	}
+	fprintf(stderr, "\n");
+
 	SSL_shutdown(ssl);
 	close(server);
 	SSL_free(ssl);
