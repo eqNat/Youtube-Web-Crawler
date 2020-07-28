@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <ctype.h>
+#include <sqlite3.h>
 
 #include "json.h"
 #include "conversions.h"
@@ -10,20 +11,35 @@
 #include "hash_table.h"
 
 #undef YY_INPUT
-#define YY_INPUT(buf, result, max_size) result = SSL_read(ssl, buf, max_size)
-
-SSL *ssl;
+#define YY_INPUT(buf, result, max_size) result = SSL_read(ssl, buf, max_size);
 
 extern void yyerror(const char *message);
 
+SSL *ssl;
+sqlite3 *db;
+sqlite3_stmt *res;
+const char sql_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+// This kludge is bad for multithreading.
+// For now, I'm just trying to get everything working the way I want on a single thread.
+void db_init()
+{
+	SSL_library_init();
+	OpenSSL_add_all_algorithms();
+	SSL_load_error_strings();
+
+	if (sqlite3_open("youtube.db", &db) != SQLITE_OK) {
+		sqlite3_close(db);
+		PANIC("Cannot open database: %s", sqlite3_errmsg(db));
+	}
+
+}
+
+_Bool db_opened = 0;
+
+int64_t id;
 int rec_count;
-
-struct Channel_Row cRow;
-struct Video_Row vRow;
-
-int queue_count = 0;
-int hash_count = 0;
-
+_Bool ratings_found;
 
 %}
 
@@ -39,22 +55,29 @@ int hash_count = 0;
 
 %%
  rec_count = 0;
+ ratings_found = 0;
+ printf("\n");
 
- vRow.likes = -1;
- vRow.dislikes = -1;
- vRow.channel_fk = &(cRow.id);
+ if (!db_opened) {
+	db_init();
+	db_opened++;
+ }
+
+ if (sqlite3_prepare_v2(db, sql_insert, -1, &res, NULL) != SQLITE_OK) {
+ 	sqlite3_close(db);
+	PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
+ }
 
  int server;
  SSL_CTX *ctx;
  {//initialize
-	SSL_library_init();
-	OpenSSL_add_all_algorithms();
-	SSL_load_error_strings();
-	if ((vRow.id = pop()) == 0) {
+	if (!(id = pop())) {
 		printf("queue empty\n");
+		sqlite3_close(db);
 		return 0;
 	}
-	queue_count--;
+
+	sqlite3_bind_int64(res, 1, id);
 
 	ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx)
@@ -92,7 +115,8 @@ int hash_count = 0;
 	                 "Connection: close\r\n"
 	                 "User-Agent: https_simple\r\n\r\n";
 	
-	encode64(vRow.id, request+13);
+	encode64(id, request+13);
+	printf("retrieving www.youtube.com/watch?v=%.11s\n", request+13);
 
 	SSL_write(ssl, request, sizeof(request)-1);
  }
@@ -107,22 +131,24 @@ int hash_count = 0;
 
 <PRIMARY_INFO>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
-		memcpy(vRow.title, yytext+26, yyleng-25);
-		//printf("Title: %s\n", vRow.title);
+		printf("Title: %.*s\n", yyleng-25, yytext+26);
+		sqlite3_bind_text(res, 2, yytext+26, yyleng-25, SQLITE_STATIC);
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
-		vRow.views = stringToInt64(yytext+27);
-		//printf("Views: %ld\n", vRow.views);
+		sqlite3_bind_int64(res, 3, stringToInt64(yytext+27));
 	}
 	"\"tooltip\":\""[0-9,]+" / "[0-9,]+ {
+		ratings_found = 1;
 		yytext += 11;
-	vRow.likes = stringToInt64(yytext);
-	yytext = strstr(yytext, "/");
-		vRow.dislikes = stringToInt64(yytext+2);
-		//printf("Likes: %ld\n", vRow.likes);
-		//printf("Dislikes: %ld\n", vRow.dislikes);
+		sqlite3_bind_int64(res, 4, stringToInt64(yytext));
+		yytext = strstr(yytext, "/");
+		sqlite3_bind_int64(res, 5, stringToInt64(yytext+2));
 	}
 	"\"videoSecondaryInfoRenderer\"" {
+		if (!ratings_found) {
+			sqlite3_bind_null(res, 4);
+			sqlite3_bind_null(res, 5);
+		}
 		yy_pop_state();
 		yy_push_state(SECONDARY_RENDERER);
 	}
@@ -130,17 +156,16 @@ int hash_count = 0;
 
 <SECONDARY_RENDERER>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
-		memcpy(cRow.name, yytext+26, yyleng-25);
-		//printf("Channel name: %s\n", cRow.name);
+		// memcpy(cRow.name, yytext+26, yyleng-25);
+		// printf("Channel name: %s\n", cRow.name);
 	}
 	"\"url\":\"/channel/UC"[0-9a-zA-Z_-]{22} {
-		cRow.id.l_half = decode64(yytext+18);
-		cRow.id.r_half = decode64(yytext+29);
-		//printf("channel ID (base-64) %s, (base-16) %lx%lx\n", yytext+18, cRow.id.l_half, cRow.id.r_half);
+		sqlite3_bind_int64(res, 6, decode64(yytext+18));
+		sqlite3_bind_int64(res, 7, decode64(yytext+29));
 	}
 	"\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
-		cRow.subscribers = approximateSubs(yytext+40);
-		//printf("subscribers (Three significant figures): %ld\n", cRow.subscribers);
+		// cRow.subscribers = approximateSubs(yytext+40);
+		// printf("subscribers (Three significant figures): %ld\n", cRow.subscribers);
 	}
 	"\"metadataRowContainer\"" {
 		yy_push_state(METADATA);
@@ -154,10 +179,18 @@ int hash_count = 0;
 <METADATA>{
 	"\"text\":\"Age-restricted video" {
 		//printf("Age-restricted video\n");
+		for (int i = 8; i < 26; i++)
+			sqlite3_bind_null(res, i);
+
+		int status;
+		if ((status = sqlite3_step(res)) != SQLITE_DONE)
+			PANIC("sqlite3_step returned %d", status);
+
 		SSL_shutdown(ssl);
 		close(server);
 		SSL_free(ssl);
 		SSL_CTX_free(ctx);
+		printf("Age-restricted\n");
 		return 1;
 	}
 
@@ -174,35 +207,40 @@ int hash_count = 0;
 
 <COMPACT_VIDEO_RENDERER>{
 	"\"videoId\":\""[0-9a-zA-Z_-]{11} {
-		vRow.recommendations[rec_count] = decode64(yytext+11);
-	//	printf("rec %d :(base-64)%s, (base-16)%lx\n", rec_count+1, yytext+12, vRow.recommendations[rec_count]);
-		if (video_insert(vRow.recommendations[rec_count]) != 0) {
-			push(vRow.recommendations[rec_count]);
-			queue_count++;
-			hash_count++;
+		int64_t rec = decode64(yytext+11);
+		sqlite3_bind_int64(res, rec_count+8, rec);
+		if (video_insert(rec)) {
+			push(rec);
 		}
+
 		yy_pop_state();
 		if (++rec_count == 18) {
+			int status;
+			if ((status = sqlite3_step(res)) != SQLITE_DONE)
+				PANIC("sqlite3_step returned %d", status);
+			sqlite3_finalize(res);
+
 			SSL_shutdown(ssl);
 			close(server);
 			SSL_free(ssl);
 			SSL_CTX_free(ctx);
-			printf("hash count: %d, queue count %d\n", hash_count, queue_count);
+			printf("hash count: %lu, queue count %lu\n", v_table_count, Q_Count);
 			return 1;
 		}
 	}
 }
 
 "\"currentVideoEndpoint\"" {
-	char id[11];
-	if (rec_count == 0)
-		PANIC("rec_count = 0 for id %.11s", encode64(vRow.id, id));
+	char id_str[11];
+	if (rec_count == 0) {
+		fprintf(stderr, "%.11s%\n", encode64(id, id_str));
+	}
 	SSL_shutdown(ssl);
 	close(server);
 	SSL_free(ssl);
 	SSL_CTX_free(ctx);
-	push(vRow.id);
-	queue_count++;
+	push(id);
+	printf("current video\n");
 	return 1;
 }
 

@@ -9,4 +9,4 @@ void push(uint64_t data);
 // else, returns popped value
 uint64_t pop();
 
-uint64_t getQCount();
+extern uint64_t Q_Count;

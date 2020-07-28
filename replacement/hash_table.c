@@ -22,6 +22,8 @@ struct C_Node {
 	int64_t rhalf;
 };
 
+uint64_t v_table_count = 0;
+
 pthread_mutex_t lock;
 
 struct V_Node* v_table[VIDEO_TABLE_WIDTH] = { 0 };
@@ -39,6 +41,7 @@ int64_t V_traverse_insert(struct V_Node** node, int64_t data)
 		if (*node == NULL) { // make sure another thread didn't steal its spot
 			*node = calloc(sizeof(struct V_Node), 1);
 			(*node)->data = data;
+			v_table_count++;
 			pthread_mutex_unlock(&lock);
 			return 1;
 		}

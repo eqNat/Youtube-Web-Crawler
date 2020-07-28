@@ -15,11 +15,6 @@ struct Q_Node* back = NULL;
 
 uint64_t Q_Count = 0;
 
-uint64_t getQCount()
-{
-	return Q_Count;
-}
-
 pthread_mutex_t key;
 
 // Don't push in the value 0, since pop() returns 0 when the queue is empty
