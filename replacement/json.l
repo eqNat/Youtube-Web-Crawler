@@ -85,16 +85,16 @@ _Bool ratings_found;
 		PANIC("SSL_CTX_new() failed.");
 
 	// socket()
-	server = socket(AF_INET6, SOCK_STREAM, 0);
+	server = socket(AF_INET, SOCK_STREAM, 0);
 	if (server < 0)
 		PANIC("socket() failed. (%d)", errno);
 
 	{// connect()
-		struct sockaddr_in6 server_address = {0};
-		server_address.sin6_family = AF_INET6;
-		server_address.sin6_port = htons(443);
+		struct sockaddr_in server_address = {0};
+		server_address.sin_family = AF_INET;
+		server_address.sin_port = htons(443);
 
-		if (inet_pton(AF_INET6, "2607:f8b0:4000:812::200e", &server_address.sin6_addr) != 1)
+		if (inet_pton(AF_INET, "172.217.1.238", &server_address.sin_addr) != 1)
 			PANIC("inet_pton failed");
 
 		if (connect(server, (struct sockaddr*)&server_address, sizeof(server_address)) == -1)
