@@ -17,8 +17,11 @@ extern void yyerror(const char *message);
 
 SSL *ssl;
 sqlite3 *db;
-sqlite3_stmt *res;
-const char sql_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+sqlite3_stmt *video_stmt;
+sqlite3_stmt *channel_stmt;
+const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
+char channel_name[100];
 
 // This kludge is bad for multithreading.
 // For now, I'm just trying to get everything working the way I want on a single thread.
@@ -50,6 +53,7 @@ _Bool ratings_found;
 %s YTINITIALPLAYERRESPONSE
 %s PRIMARY_INFO
 %s SECONDARY_RENDERER
+%s SUB_COUNT
 %s SECONDARY_RESULTS
 %s METADATA
 %s COMPACT_VIDEO_RENDERER
@@ -64,7 +68,7 @@ _Bool ratings_found;
 	db_opened++;
  }
 
- if (sqlite3_prepare_v2(db, sql_insert, -1, &res, NULL) != SQLITE_OK) {
+ if (sqlite3_prepare_v2(db, sql_video_insert, -1, &video_stmt, NULL) != SQLITE_OK) {
  	sqlite3_close(db);
 	PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
  }
@@ -78,7 +82,7 @@ _Bool ratings_found;
 		return 0;
 	}
 
-	sqlite3_bind_int64(res, 1, id);
+	sqlite3_bind_int64(video_stmt, 1, id);
 
 	ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx)
@@ -138,10 +142,10 @@ _Bool ratings_found;
 <YTINITIALPLAYERRESPONSE>{
 	"\"reason\":{\"simpleText\":\"Private video\"}" {
 		for (int i = 2; i < 26; i++)
-			sqlite3_bind_null(res, i);
+			sqlite3_bind_null(video_stmt, i);
 
 		int status;
-		if ((status = sqlite3_step(res)) != SQLITE_DONE)
+		if ((status = sqlite3_step(video_stmt)) != SQLITE_DONE)
 			PANIC("sqlite3_step returned %d", status);
 
 		SSL_shutdown(ssl);
@@ -156,22 +160,22 @@ _Bool ratings_found;
 <PRIMARY_INFO>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
 		printf("Title: %.*s\n", yyleng-25, yytext+26);
-		sqlite3_bind_text(res, 2, yytext+26, yyleng-25, SQLITE_STATIC);
+		sqlite3_bind_text(video_stmt, 2, yytext+26, yyleng-25, SQLITE_STATIC);
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
-		sqlite3_bind_int64(res, 3, stringToInt64(yytext+27));
+		sqlite3_bind_int64(video_stmt, 3, stringToInt64(yytext+27));
 	}
 	"\"tooltip\":\""[0-9,]+" / "[0-9,]+ {
 		ratings_found = 1;
 		yytext += 11;
-		sqlite3_bind_int64(res, 4, stringToInt64(yytext));
+		sqlite3_bind_int64(video_stmt, 4, stringToInt64(yytext));
 		yytext = strstr(yytext, "/");
-		sqlite3_bind_int64(res, 5, stringToInt64(yytext+2));
+		sqlite3_bind_int64(video_stmt, 5, stringToInt64(yytext+2));
 	}
 	"\"videoSecondaryInfoRenderer\"" {
 		if (!ratings_found) {
-			sqlite3_bind_null(res, 4);
-			sqlite3_bind_null(res, 5);
+			sqlite3_bind_null(video_stmt, 4);
+			sqlite3_bind_null(video_stmt, 5);
 		}
 		yy_pop_state();
 		yy_push_state(SECONDARY_RENDERER);
@@ -180,16 +184,25 @@ _Bool ratings_found;
 
 <SECONDARY_RENDERER>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
-		// memcpy(cRow.name, yytext+26, yyleng-25);
-		// printf("Channel name: %s\n", cRow.name);
+		memcpy(channel_name, yytext+26, yyleng-25);
+		channel_name[yyleng-25] = '\0';
+		printf("Channel name: %s\n", channel_name);
 	}
 	"\"url\":\"/channel/UC"[0-9a-zA-Z_-]{22} {
-		sqlite3_bind_int64(res, 6, decode64(yytext+18));
-		sqlite3_bind_int64(res, 7, decode64(yytext+29));
-	}
-	"\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
-		// cRow.subscribers = approximateSubs(yytext+40);
-		// printf("subscribers (Three significant figures): %ld\n", cRow.subscribers);
+		int64_t l_id = decode64(yytext+18);
+		int64_t r_id = decode64(yytext+29);
+		sqlite3_bind_int64(video_stmt, 6, l_id);
+		sqlite3_bind_int64(video_stmt, 7, r_id);
+		if (channel_insert(l_id, r_id)) {
+			if (sqlite3_prepare_v2(db, sql_channel_insert, -1, &channel_stmt, NULL) != SQLITE_OK) {
+				sqlite3_close(db);
+				PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
+			}
+			sqlite3_bind_int64(channel_stmt, 1, l_id);
+			sqlite3_bind_int64(channel_stmt, 2, r_id);
+			sqlite3_bind_text(channel_stmt, 3, channel_name, strlen(channel_name), SQLITE_STATIC);
+			yy_push_state(SUB_COUNT);
+		}
 	}
 	"\"metadataRowContainer\"" {
 		yy_push_state(METADATA);
@@ -200,21 +213,29 @@ _Bool ratings_found;
 	}
 }
 
+<SUB_COUNT>"\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
+	sqlite3_bind_int64(channel_stmt, 4, approximateSubs(yytext+40));
+	int status;
+	if ((status = sqlite3_step(channel_stmt)) != SQLITE_DONE)
+		PANIC("sqlite3_step returned %d", status);
+	sqlite3_finalize(channel_stmt);
+	yy_pop_state();
+}
+
 <METADATA>{
 	"\"text\":\"Age-restricted video" {
 		//printf("Age-restricted video\n");
 		for (int i = 8; i < 26; i++)
-			sqlite3_bind_null(res, i);
+			sqlite3_bind_null(video_stmt, i);
 
 		int status;
-		if ((status = sqlite3_step(res)) != SQLITE_DONE)
+		if ((status = sqlite3_step(video_stmt)) != SQLITE_DONE)
 			PANIC("sqlite3_step returned %d", status);
 
 		SSL_shutdown(ssl);
 		close(server);
 		SSL_free(ssl);
 		SSL_CTX_free(ctx);
-		printf("Age-restricted\n");
 		return 1;
 	}
 
@@ -232,7 +253,7 @@ _Bool ratings_found;
 <COMPACT_VIDEO_RENDERER>{
 	"\"videoId\":\""[0-9a-zA-Z_-]{11} {
 		int64_t rec = decode64(yytext+11);
-		sqlite3_bind_int64(res, rec_count+8, rec);
+		sqlite3_bind_int64(video_stmt, rec_count+8, rec);
 		if (video_insert(rec)) {
 			push(rec);
 		}
@@ -240,9 +261,9 @@ _Bool ratings_found;
 		yy_pop_state();
 		if (++rec_count == 18) {
 			int status;
-			if ((status = sqlite3_step(res)) != SQLITE_DONE)
+			if ((status = sqlite3_step(video_stmt)) != SQLITE_DONE)
 				PANIC("sqlite3_step returned %d", status);
-			sqlite3_finalize(res);
+			sqlite3_finalize(video_stmt);
 
 			SSL_shutdown(ssl);
 			close(server);
@@ -270,7 +291,6 @@ _Bool ratings_found;
 	SSL_free(ssl);
 	SSL_CTX_free(ctx);
 	push(id);
-	printf("current video\n");
 	return 1;
 }
 

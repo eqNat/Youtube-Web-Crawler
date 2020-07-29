@@ -27,46 +27,64 @@ int main()
 		if (sqlite3_open("youtube.db", &db) != SQLITE_OK)
 			PANIC("Can't open database: %s", sqlite3_errmsg(db));
 
-		char *sql_create = "CREATE TABLE IF NOT EXISTS videos ("
-		"id INTEGER(64) PRIMARY KEY,"
-		"title VARCHAR(100)," // should be NULL if and only if video is private
-		"views INTEGER(64)," // should be NULL if and only if video is livestream OR title = 'Youtube Movies' OR private
-		"likes INTEGER(64),"    // should be NULL if and only if ratings are disabled OR private
-		"dislikes INTEGER(64)," // 
-		"lchannel_id INTEGER(64)," // should be NULL if and only if video is private
-		"rchannel_id INTEGER(64)," //
-		"rec_1 INTEGER(64),"    // should be NULL if and only if video is age-restricted
-		"rec_2 INTEGER(64),"    //
-		"rec_3 INTEGER(64),"    //
-		"rec_4 INTEGER(64),"    //
-		"rec_5 INTEGER(64),"    //
-		"rec_6 INTEGER(64),"    //
-		"rec_7 INTEGER(64),"    //
-		"rec_8 INTEGER(64),"    //
-		"rec_9 INTEGER(64),"    //
-		"rec_10 INTEGER(64),"   //
-		"rec_11 INTEGER(64),"   //
-		"rec_12 INTEGER(64),"   //
-		"rec_13 INTEGER(64),"   //
-		"rec_14 INTEGER(64),"   //
-		"rec_15 INTEGER(64),"   //
-		"rec_16 INTEGER(64),"   //
-		"rec_17 INTEGER(64),"   //
-		"rec_18 INTEGER(64));"; //
+		char *create_video_table =
+			"CREATE TABLE IF NOT EXISTS videos ("
+			"id INTEGER(64) PRIMARY KEY,"
+			"title VARCHAR(100)," // NULL if video is private
+			"views INTEGER(64)," // NULL if livestream OR title = 'Youtube Movies' OR private
+			"likes INTEGER(64),"    // NULL if ratings are disabled OR private
+			"dislikes INTEGER(64)," // 
+			"lchannel_id INTEGER(64)," // NULL if video is private
+			"rchannel_id INTEGER(64)," //
+			"rec_1 INTEGER(64),"  // NULL if video is age-restricted
+			"rec_2 INTEGER(64),"  //
+			"rec_3 INTEGER(64),"  //
+			"rec_4 INTEGER(64),"  //
+			"rec_5 INTEGER(64),"  //
+			"rec_6 INTEGER(64),"  //
+			"rec_7 INTEGER(64),"  //
+			"rec_8 INTEGER(64),"  //
+			"rec_9 INTEGER(64),"  //
+			"rec_10 INTEGER(64)," //
+			"rec_11 INTEGER(64)," //
+			"rec_12 INTEGER(64)," //
+			"rec_13 INTEGER(64)," //
+			"rec_14 INTEGER(64)," //
+			"rec_15 INTEGER(64)," //
+			"rec_16 INTEGER(64)," //
+			"rec_17 INTEGER(64)," //
+			"rec_18 INTEGER(64)," //
+			"FOREIGN KEY(lchannel_id, rchannel_id)"  // NULL if video is private
+				"REFERENCES channels(l_id, r_id));"; //
 
-		if (sqlite3_exec(db, sql_create, NULL, 0, &zErrMsg) != SQLITE_OK )
+		if (sqlite3_exec(db, create_video_table, NULL, 0, &zErrMsg) != SQLITE_OK )
 			PANIC("SQL error: %s", zErrMsg);
 
-		const char sql_pk_select[] = "SELECT id from videos";
+		char *create_channel_table =
+			"CREATE TABLE IF NOT EXISTS channels ("
+			"l_id INTEGER(64),"
+			"r_id INTEGER(64),"
+			"name VARCHAR(20) NOT NULL,"
+			"subscribers INTEGER(64)," // NULL if subscriber count is hidden
+			"PRIMARY KEY (l_id, r_id));";
+
+		if (sqlite3_exec(db, create_channel_table, NULL, 0, &zErrMsg) != SQLITE_OK )
+			PANIC("SQL error: %s", zErrMsg);
+
+		const char sql_id_select[] = "SELECT id, lchannel_id, rchannel_id from videos";
 
 		sqlite3_stmt *res;
 
-		if (sqlite3_prepare_v2(db, sql_pk_select, -1, &res, 0) != SQLITE_OK)
+		if (sqlite3_prepare_v2(db, sql_id_select, -1, &res, 0) != SQLITE_OK)
 			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
 
 		int status;
-		while ((status = sqlite3_step(res)) == SQLITE_ROW)
+		while ((status = sqlite3_step(res)) == SQLITE_ROW) {
 			video_insert(sqlite3_column_int64(res, 0));
+			int64_t l_id = sqlite3_column_int64(res, 1);
+			int64_t r_id = sqlite3_column_int64(res, 2);
+			channel_insert(l_id, r_id);
+		}
 
 		if (status != SQLITE_DONE)
 			PANIC("step failed");
