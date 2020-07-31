@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <sqlite3.h> 
 
 #include "json.h"
@@ -9,6 +10,19 @@
 #include "queue.h"
 #include "hash_table.h"
 #include "panic.h"
+
+#define THREAD_NUM 12
+
+void* runner(void* no_args)
+{
+	yyscan_t scanner;
+	yylex_init(&scanner);
+
+	while (yylex(scanner));
+
+	yylex_destroy(scanner);
+	return NULL;
+}
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 {
@@ -78,7 +92,7 @@ int main()
 		if (sqlite3_prepare_v2(db, sql_id_select, -1, &res, 0) != SQLITE_OK)
 			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
 
-		int status;
+		int32_t status;
 		while ((status = sqlite3_step(res)) == SQLITE_ROW) {
 			video_insert(sqlite3_column_int64(res, 0));
 			int64_t l_id = sqlite3_column_int64(res, 1);
@@ -101,7 +115,7 @@ int main()
 			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
 
 		while ((status = sqlite3_step(res)) == SQLITE_ROW)
-			for (int i = 0; i < 18; i++) {
+			for (int32_t i = 0; i < 18; i++) {
 				int64_t recommendation = sqlite3_column_int64(res, i);
 				if (video_insert(recommendation))
 					push(recommendation);
@@ -118,9 +132,25 @@ int main()
 		video_insert(start_id_int);
 	}
 
-	while (yylex())
-	{/* Empty while loop */}
+	yyscan_t scanner;
+	yylex_init(&scanner);
+	while (Q_Count < THREAD_NUM) {
+		printf("scanning for threads\n");
+		yylex(scanner);
+	}
+
+	yylex_destroy(scanner);
 	
-	printf("Leaving");
-	
+	{// multithreading setup and execution
+		pthread_t tids[THREAD_NUM];
+		for (int32_t i = 0; i < THREAD_NUM; i++) {
+			pthread_attr_t attr;
+			pthread_attr_init(&attr);
+			pthread_create(&tids[i], &attr, runner, NULL);
+			printf("thread %d in\n", i+1);
+		}
+
+		for (int32_t i = 0; i < THREAD_NUM; i++)
+			pthread_join(tids[i], NULL);
+	}
 }

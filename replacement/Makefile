@@ -1,5 +1,5 @@
 json: main.o lex.yy.o conversions.o panic.o queue.o hash_table.o
-	gcc -o json $^ -lsqlite3 -lssl -lcrypto
+	gcc -o json $^ -lsqlite3 -lssl -lcrypto -pthread
 
 main.o: main.c json.h queue.h hash_table.h panic.h
 	gcc -c main.c

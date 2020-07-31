@@ -4,10 +4,11 @@
 #include <pthread.h>
 
 #include "queue.h"
+#include "conversions.h"
 
 struct Q_Node {
 	struct Q_Node* next;
-	uint64_t data;
+	int64_t data;
 };
 
 struct Q_Node* front = NULL;
@@ -18,7 +19,7 @@ uint64_t Q_Count = 0;
 pthread_mutex_t key;
 
 // Don't push in the value 0, since pop() returns 0 when the queue is empty
-void push(uint64_t data)
+void push(int64_t data)
 {
 	if (data == 0)
 		fprintf(stderr, "Error: Queue prohibits zero value to be pushed.\n"), exit(1);
@@ -39,14 +40,14 @@ void push(uint64_t data)
 
 // returns 0 if queue is empty
 // else, returns popped value
-uint64_t pop()
+int64_t pop()
 {
 	pthread_mutex_lock(&key);
 	if (front == NULL) {
 		pthread_mutex_unlock(&key);
 		return 0;
 	}
-	uint64_t to_return = front->data;
+	int64_t to_return = front->data;
 	struct Q_Node* to_delete = front;
 	if (front == back) {
 		front = NULL;

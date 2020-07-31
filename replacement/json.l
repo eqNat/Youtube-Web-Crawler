@@ -4,6 +4,20 @@
 #include <ctype.h>
 #include <sqlite3.h>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <errno.h>
+
+#include <openssl/crypto.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
 #include "json.h"
 #include "conversions.h"
 #include "panic.h"
@@ -15,16 +29,22 @@
 
 extern void yyerror(const char *message);
 
-SSL *ssl;
-sqlite3 *db;
-sqlite3_stmt *video_stmt;
-sqlite3_stmt *channel_stmt;
-const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
-char channel_name[100];
+_Thread_local SSL *ssl;
+_Thread_local SSL_CTX *ctx;
+_Thread_local sqlite3 *db = NULL;
+_Thread_local sqlite3_stmt *video_stmt;
+_Thread_local sqlite3_stmt *channel_stmt;
+_Thread_local const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+_Thread_local const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
+_Thread_local char channel_name[256];
+_Thread_local char request[] =
+	"GET /watch?v=########### HTTP/1.1\r\n"
+	"Host: www.youtube.com:443\r\n"
+	"Connection: close\r\n"
+	"User-Agent: https_simple\r\n\r\n";
+_Thread_local int server;
+_Thread_local char title[512];
 
-// This kludge is bad for multithreading.
-// For now, I'm just trying to get everything working the way I want on a single thread.
 void db_init()
 {
 	SSL_library_init();
@@ -38,16 +58,13 @@ void db_init()
 
 }
 
-_Bool db_opened = 0;
-
-int64_t id;
-int rec_count;
-_Bool ratings_found;
+_Thread_local int64_t id;
+_Thread_local int rec_count;
+_Thread_local _Bool ratings_found;
 
 %}
 
-%option noyywrap
-%option stack
+%option noyywrap stack reentrant
 
 %s YTINITIALDATA
 %s YTINITIALPLAYERRESPONSE
@@ -61,24 +78,23 @@ _Bool ratings_found;
 %%
  rec_count = 0;
  ratings_found = 0;
- printf("\n");
 
- if (!db_opened) {
+ if (!db)
 	db_init();
-	db_opened++;
- }
 
  if (sqlite3_prepare_v2(db, sql_video_insert, -1, &video_stmt, NULL) != SQLITE_OK) {
  	sqlite3_close(db);
 	PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
  }
 
- int server;
- SSL_CTX *ctx;
  {//initialize
 	if (!(id = pop())) {
 		printf("queue empty\n");
 		sqlite3_close(db);
+		SSL_shutdown(ssl);
+		close(server);
+		SSL_free(ssl);
+		SSL_CTX_free(ctx);
 		return 0;
 	}
 
@@ -115,27 +131,22 @@ _Bool ratings_found;
 		PANIC("SSL_connect() failed.");
 	}
 
-	char request[] = "GET /watch?v=########### HTTP/1.1\r\n"
-	                 "Host: www.youtube.com:443\r\n"
-	                 "Connection: close\r\n"
-	                 "User-Agent: https_simple\r\n\r\n";
 	
 	encode64(id, request+13);
-	printf("retrieving www.youtube.com/watch?v=%.11s\n", request+13);
 
 	SSL_write(ssl, request, sizeof(request)-1);
  }
 
 "window[\"ytInitialData\"] = " {
-	yy_push_state(YTINITIALDATA);
+	yy_push_state(YTINITIALDATA, yyscanner);
 }
 
 <YTINITIALDATA>{
 	"\"videoPrimaryInfoRenderer\"" {
-		yy_push_state(PRIMARY_INFO);
+		yy_push_state(PRIMARY_INFO, yyscanner);
 	}
 	"window[\"ytInitialPlayerResponse\"]" {
-		yy_push_state(YTINITIALPLAYERRESPONSE);
+		yy_push_state(YTINITIALPLAYERRESPONSE, yyscanner);
 	}
 }
 
@@ -152,15 +163,16 @@ _Bool ratings_found;
 		close(server);
 		SSL_free(ssl);
 		SSL_CTX_free(ctx);
-		printf("Private");
 		return 1;
 	}
 }
 
 <PRIMARY_INFO>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
-		printf("Title: %.*s\n", yyleng-25, yytext+26);
-		sqlite3_bind_text(video_stmt, 2, yytext+26, yyleng-25, SQLITE_STATIC);
+		memcpy(title, yytext+26, yyleng-25);
+		sqlite3_bind_text(video_stmt, 2, title, yyleng-25, SQLITE_STATIC);
+		// For some reason the following line will not work
+		// sqlite3_bind_text(video_stmt, 2, yytext+26, yyleng-25, SQLITE_STATIC);
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
 		sqlite3_bind_int64(video_stmt, 3, stringToInt64(yytext+27));
@@ -177,8 +189,8 @@ _Bool ratings_found;
 			sqlite3_bind_null(video_stmt, 4);
 			sqlite3_bind_null(video_stmt, 5);
 		}
-		yy_pop_state();
-		yy_push_state(SECONDARY_RENDERER);
+		yy_pop_state(yyscanner);
+		yy_push_state(SECONDARY_RENDERER, yyscanner);
 	}
 }
 
@@ -186,7 +198,6 @@ _Bool ratings_found;
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
 		memcpy(channel_name, yytext+26, yyleng-25);
 		channel_name[yyleng-25] = '\0';
-		printf("Channel name: %s\n", channel_name);
 	}
 	"\"url\":\"/channel/UC"[0-9a-zA-Z_-]{22} {
 		int64_t l_id = decode64(yytext+18);
@@ -201,15 +212,15 @@ _Bool ratings_found;
 			sqlite3_bind_int64(channel_stmt, 1, l_id);
 			sqlite3_bind_int64(channel_stmt, 2, r_id);
 			sqlite3_bind_text(channel_stmt, 3, channel_name, strlen(channel_name), SQLITE_STATIC);
-			yy_push_state(SUB_COUNT);
+			yy_push_state(SUB_COUNT, yyscanner);
 		}
 	}
 	"\"metadataRowContainer\"" {
-		yy_push_state(METADATA);
+		yy_push_state(METADATA, yyscanner);
 	}
 	"\"secondaryResults\"" {
-		yy_pop_state();
-		yy_push_state(SECONDARY_RESULTS);
+		yy_pop_state(yyscanner);
+		yy_push_state(SECONDARY_RESULTS, yyscanner);
 	}
 }
 
@@ -219,12 +230,11 @@ _Bool ratings_found;
 	if ((status = sqlite3_step(channel_stmt)) != SQLITE_DONE)
 		PANIC("sqlite3_step returned %d", status);
 	sqlite3_finalize(channel_stmt);
-	yy_pop_state();
+	yy_pop_state(yyscanner);
 }
 
 <METADATA>{
 	"\"text\":\"Age-restricted video" {
-		//printf("Age-restricted video\n");
 		for (int i = 8; i < 26; i++)
 			sqlite3_bind_null(video_stmt, i);
 
@@ -236,17 +246,18 @@ _Bool ratings_found;
 		close(server);
 		SSL_free(ssl);
 		SSL_CTX_free(ctx);
+
 		return 1;
 	}
 
 	"\"collapsedItemCount\"" {
-		yy_pop_state();
+		yy_pop_state(yyscanner);
 	}
 }
 
 <SECONDARY_RESULTS>{
 	"\"compactVideoRenderer\"" {
-		yy_push_state(COMPACT_VIDEO_RENDERER);
+		yy_push_state(COMPACT_VIDEO_RENDERER, yyscanner);
 	}
 }
 
@@ -258,7 +269,7 @@ _Bool ratings_found;
 			push(rec);
 		}
 
-		yy_pop_state();
+		yy_pop_state(yyscanner);
 		if (++rec_count == 18) {
 			int status;
 			if ((status = sqlite3_step(video_stmt)) != SQLITE_DONE)
@@ -269,7 +280,8 @@ _Bool ratings_found;
 			close(server);
 			SSL_free(ssl);
 			SSL_CTX_free(ctx);
-			printf("hash count: %lu, queue count %lu\n", v_table_count, Q_Count);
+			if ((v_table_count - Q_Count) % 100 == 0)
+				printf("hash count: %lu, queue count %lu\n", v_table_count, Q_Count);
 			return 1;
 		}
 	}
@@ -280,11 +292,9 @@ _Bool ratings_found;
 
 	// debuging
 	if (yytext[0] == '<')
-		fprintf(stderr, "current video end point not found: ");
-	if (rec_count == 0) {
-		fprintf(stderr, "%.11s%", encode64(id, id_str));
-	}
-	fprintf(stderr, "\n");
+		fprintf(stderr, "currentVideoEndpoint not found: %.11s\n", encode64(id, id_str));
+	if (rec_count == 0)
+		fprintf(stderr, "rec_count = 0: %.11s\n", encode64(id, id_str));
 
 	SSL_shutdown(ssl);
 	close(server);
