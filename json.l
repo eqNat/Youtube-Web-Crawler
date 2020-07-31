@@ -29,13 +29,14 @@
 
 extern void yyerror(const char *message);
 
+const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
+
 _Thread_local SSL *ssl;
 _Thread_local SSL_CTX *ctx;
 _Thread_local sqlite3 *db = NULL;
 _Thread_local sqlite3_stmt *video_stmt;
 _Thread_local sqlite3_stmt *channel_stmt;
-_Thread_local const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-_Thread_local const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
 _Thread_local char channel_name[256];
 _Thread_local char request[] =
 	"GET /watch?v=########### HTTP/1.1\r\n"
