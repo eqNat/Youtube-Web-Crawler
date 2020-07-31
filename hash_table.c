@@ -23,6 +23,7 @@ struct C_Node {
 };
 
 uint64_t v_table_count = 0;
+uint64_t c_table_count = 0;
 
 pthread_mutex_t lock;
 
@@ -65,6 +66,7 @@ int64_t C_traverse_insert(struct C_Node** node, int64_t lhalf, int64_t rhalf)
 			(*node)->lhalf = lhalf;
 			(*node)->rhalf = rhalf;
 			pthread_mutex_unlock(&lock);
+			c_table_count++;
 			return 1;
 		}
 	pthread_mutex_unlock(&lock);

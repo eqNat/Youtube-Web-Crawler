@@ -85,7 +85,7 @@ int main()
 		if (sqlite3_exec(db, create_channel_table, NULL, 0, &zErrMsg) != SQLITE_OK )
 			PANIC("SQL error: %s", zErrMsg);
 
-		const char sql_id_select[] = "SELECT id, lchannel_id, rchannel_id from videos";
+		const char sql_id_select[] = "SELECT id from videos";
 
 		sqlite3_stmt *res;
 
@@ -95,8 +95,21 @@ int main()
 		int32_t status;
 		while ((status = sqlite3_step(res)) == SQLITE_ROW) {
 			video_insert(sqlite3_column_int64(res, 0));
-			int64_t l_id = sqlite3_column_int64(res, 1);
-			int64_t r_id = sqlite3_column_int64(res, 2);
+		}
+
+		if (status != SQLITE_DONE)
+			PANIC("step failed");
+
+		sqlite3_finalize(res);
+
+		const char sql_cid_select[] = "SELECT l_id, r_id from channels";
+
+		if (sqlite3_prepare_v2(db, sql_cid_select, -1, &res, 0) != SQLITE_OK)
+			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
+
+		while ((status = sqlite3_step(res)) == SQLITE_ROW) {
+			int64_t l_id = sqlite3_column_int64(res, 0);
+			int64_t r_id = sqlite3_column_int64(res, 1);
 			channel_insert(l_id, r_id);
 		}
 
@@ -131,6 +144,8 @@ int main()
 		push(start_id_int);
 		video_insert(start_id_int);
 	}
+	printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
+	v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 
 	yyscan_t scanner;
 	yylex_init(&scanner);

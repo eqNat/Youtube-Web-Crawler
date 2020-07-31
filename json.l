@@ -286,7 +286,8 @@ _Thread_local _Bool ratings_found;
 			SSL_free(ssl);
 			SSL_CTX_free(ctx);
 			if ((v_table_count - Q_Count) % 100 == 0)
-				printf("processed: %lu, waiting: %lu, total: %lu\n", v_table_count-Q_Count, Q_Count, v_table_count);
+				printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
+				v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 			return 1;
 		}
 	}
