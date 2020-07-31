@@ -60,12 +60,13 @@ void db_init()
 	if ((status = sqlite3_exec(db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
 		PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
 	
-	sqlite3_busy_timeout(db, 1000);
+	sqlite3_busy_timeout(db, 100);
 }
 
 _Thread_local int64_t id;
 _Thread_local int rec_count;
 _Thread_local _Bool ratings_found;
+_Thread_local int i;
 
 %}
 
@@ -122,8 +123,9 @@ _Thread_local _Bool ratings_found;
 		if (inet_pton(AF_INET, "172.217.1.238", &server_address.sin_addr) != 1)
 			PANIC("inet_pton failed");
 
-		if (connect(server, (struct sockaddr*)&server_address, sizeof(server_address)) == -1)
-			PANIC("connect() failed. (%d)\n", errno);
+		for (i = 0; connect(server, (struct sockaddr*)&server_address, sizeof(server_address)) == -1; i++)
+			if (i == 5)
+				PANIC("connect() failed. (%d)\n", errno);
 	}
 
 	ssl = SSL_new(ctx);
@@ -131,9 +133,15 @@ _Thread_local _Bool ratings_found;
 		PANIC("SSL_new() failed.");
 
 	SSL_set_fd(ssl, server);
-	if (SSL_connect(ssl) == -1) {
-		ERR_print_errors_fp(stderr);
-		PANIC("SSL_connect() failed: %d", errno);
+	for (i = 0; SSL_connect(ssl) == -1; i++) {
+		if (i == 5) {
+			push(id);
+			close(server);
+			SSL_CTX_free(ctx);
+			return 1;
+		}
+		//ERR_print_errors_fp(stderr);
+		//PANIC("SSL_connect() failed: %d", errno);
 	}
 
 	
