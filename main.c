@@ -1,114 +1,146 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <pthread.h>
-#include <unistd.h>
-#include <fcntl.h> 
-#include <curl/curl.h>
-#include <ctype.h>
+#include <sqlite3.h> 
 
-#include "base64.h"
-#include "HTML_handler.h"
+#include "json.h"
+#include "conversions.h"
+#include "queue.h"
+#include "hash_table.h"
+#include "panic.h"
 
-#define ROW_COUNT (getBSTCount()-getQCount())
-#define THREAD_NUM 36
-
-struct call_back_args {
-	char* HTML;
-	uint32_t offset;
-	uint32_t max_offset; // Will reallocate into larger heaps if needed
-};
-
-static size_t write_data(char* data, size_t size, size_t nmemb, struct call_back_args* args)
-{
-	if (args->offset + nmemb > args->max_offset) {
-		args->max_offset = args->offset + nmemb;
-		args->HTML = realloc(args->HTML, args->max_offset + 1);
-	}
-
-	memcpy(&args->HTML[args->offset], data, nmemb);
-	args->offset += nmemb;
-
-	args->HTML[args->offset] = '\0';
-
-	return nmemb;
-}
+#define THREAD_NUM 12
 
 void* runner(void* no_args)
 {
-	uint64_t id;
-	char full_url[44] = "https://www.youtube.com/watch?v=";
-	struct call_back_args args = {
-		.HTML = calloc(524288, 1),
-		.max_offset = 524287
-	};
+	yyscan_t scanner;
+	yylex_init(&scanner);
 
-	CURL *curl;
-	curl = curl_easy_init();
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &args);
-	CURLcode res;
+	while (yylex(scanner));
 
-	while (id = pop())
-	{
-		args.offset = 0;
+	yylex_destroy(scanner);
+	return NULL;
+}
 
-		encode64(id, &full_url[32]);
-		curl_easy_setopt(curl, CURLOPT_URL, full_url);
-
-		if (res = curl_easy_perform(curl) != CURLE_OK)
-			fprintf(stderr, "ERROR: curl_easy_perform failed:\n %s \n", curl_easy_strerror(res));
-
-		HTML_handler(args.HTML, id);
-
-		if (ROW_COUNT % 100 == 0)
-			fprintf(stderr, "IDs processed = %lu, waiting = %lu, total = %lu\n",
-			ROW_COUNT, getQCount(), getBSTCount());
-	}
-	curl_easy_cleanup(curl);
-	pthread_exit(0);
+static int callback(void *NotUsed, int argc, char **argv, char **azColName)
+{
+   for(int i = 0; i < argc; i++)
+      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+   printf("\n");
+   return 0;
 }
 
 int main()
 {
-	{// load the 'youtube.bin' file if it exists, else load default video id.
-		char default_id[11] = "nX6SAH3w6UI";
-		struct Row buffer;
-		int32_t fd;
-		int32_t size;
-		if ((fd = open("youtube.bin", O_RDONLY, 0755)) != -1) {
-			printf("Loading 'youtube.bin'...\n");
-			// load primary keys
-			while (size = read(fd, &buffer, sizeof(struct Row))) {
-				if (size == -1) {
-					perror("error reading file: ");
-					exit(1);
-				}
-				if (!BST_insert(buffer.id)) {
-					fprintf(stderr, "**ERROR**: Attempted to insert duplicate value %lx\n \
-					This may be due to a newer commit changing the macro value REC_COUNT found in HTML_handler.h \
-					Either revert REC_COUNT to previous value or simply remove the youtube.bin file\n", buffer.id);
-					exit(1);
-				}
-			}
-			lseek(fd, 0, SEEK_SET);
-			// load foreign keys
-			while (read(fd, &buffer, sizeof(struct Row)))
-				for (int32_t i = 0; i < REC_COUNT; i++) {
-					if (BST_insert(buffer.recommendations[i]))
-						push(buffer.recommendations[i]);
-			}
-			close(fd);
-			printf("youtube.bin rows (IDs processed) = %lu, queue count (waiting) = %lu, BST count (total) = %lu\n",
-			        ROW_COUNT, getQCount(), getBSTCount());
-		} else {
-			printf("No file found. Using default ID\n");
-			BST_insert(decode64(default_id));
-			push(decode64(default_id));
+	{
+		sqlite3 *db;
+		char *zErrMsg = 0;
+
+		if (sqlite3_open("youtube.db", &db) != SQLITE_OK)
+			PANIC("Can't open database: %s", sqlite3_errmsg(db));
+
+		char *create_video_table =
+			"CREATE TABLE IF NOT EXISTS videos ("
+			"id INTEGER(64) PRIMARY KEY,"
+			"title VARCHAR(100)," // NULL if video is private
+			"views INTEGER(64)," // NULL if livestream OR title = 'Youtube Movies' OR private
+			"likes INTEGER(64),"    // NULL if ratings are disabled OR private
+			"dislikes INTEGER(64)," // 
+			"lchannel_id INTEGER(64)," // NULL if video is private
+			"rchannel_id INTEGER(64)," //
+			"rec_1 INTEGER(64),"  // NULL if video is age-restricted
+			"rec_2 INTEGER(64),"  //
+			"rec_3 INTEGER(64),"  //
+			"rec_4 INTEGER(64),"  //
+			"rec_5 INTEGER(64),"  //
+			"rec_6 INTEGER(64),"  //
+			"rec_7 INTEGER(64),"  //
+			"rec_8 INTEGER(64),"  //
+			"rec_9 INTEGER(64),"  //
+			"rec_10 INTEGER(64)," //
+			"rec_11 INTEGER(64)," //
+			"rec_12 INTEGER(64)," //
+			"rec_13 INTEGER(64)," //
+			"rec_14 INTEGER(64)," //
+			"rec_15 INTEGER(64)," //
+			"rec_16 INTEGER(64)," //
+			"rec_17 INTEGER(64)," //
+			"rec_18 INTEGER(64)," //
+			"FOREIGN KEY(lchannel_id, rchannel_id)"  // NULL if video is private
+				"REFERENCES channels(l_id, r_id));"; //
+
+		if (sqlite3_exec(db, create_video_table, NULL, 0, &zErrMsg) != SQLITE_OK )
+			PANIC("SQL error: %s", zErrMsg);
+
+		char *create_channel_table =
+			"CREATE TABLE IF NOT EXISTS channels ("
+			"l_id INTEGER(64),"
+			"r_id INTEGER(64),"
+			"name VARCHAR(20) NOT NULL,"
+			"subscribers INTEGER(64)," // NULL if subscriber count is hidden
+			"PRIMARY KEY (l_id, r_id));";
+
+		if (sqlite3_exec(db, create_channel_table, NULL, 0, &zErrMsg) != SQLITE_OK )
+			PANIC("SQL error: %s", zErrMsg);
+
+		const char sql_id_select[] = "SELECT id, lchannel_id, rchannel_id from videos";
+
+		sqlite3_stmt *res;
+
+		if (sqlite3_prepare_v2(db, sql_id_select, -1, &res, 0) != SQLITE_OK)
+			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
+
+		int32_t status;
+		while ((status = sqlite3_step(res)) == SQLITE_ROW) {
+			video_insert(sqlite3_column_int64(res, 0));
+			int64_t l_id = sqlite3_column_int64(res, 1);
+			int64_t r_id = sqlite3_column_int64(res, 2);
+			channel_insert(l_id, r_id);
 		}
+
+		if (status != SQLITE_DONE)
+			PANIC("step failed");
+
+		sqlite3_finalize(res);
+
+		const char sql_rec_select[] =
+			"SELECT "
+			"rec_1, rec_2, rec_3, rec_4, rec_5, rec_6, rec_7, rec_8, rec_9, "
+			"rec_10, rec_11, rec_12, rec_13, rec_14, rec_15, rec_16, rec_17, rec_18 "
+			"FROM videos;";
+
+		if (sqlite3_prepare_v2(db, sql_rec_select, -1, &res, 0) != SQLITE_OK)
+			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
+
+		while ((status = sqlite3_step(res)) == SQLITE_ROW)
+			for (int32_t i = 0; i < 18; i++) {
+				int64_t recommendation = sqlite3_column_int64(res, i);
+				if (video_insert(recommendation))
+					push(recommendation);
+			}
+		sqlite3_close(db);
 	}
 
+	char start_id[] = "3nrLc_JOF7k"; // ordinary
+	//char start_id[] = "x71MDrC400A"; // age-restricted
+	if (v_table_count == 0) {
+		int64_t start_id_int = decode64(start_id);
+
+		push(start_id_int);
+		video_insert(start_id_int);
+	}
+
+	yyscan_t scanner;
+	yylex_init(&scanner);
+	while (Q_Count < THREAD_NUM) {
+		printf("scanning for threads\n");
+		yylex(scanner);
+	}
+
+	yylex_destroy(scanner);
+	
 	{// multithreading setup and execution
 		pthread_t tids[THREAD_NUM];
 		for (int32_t i = 0; i < THREAD_NUM; i++) {
@@ -116,12 +148,9 @@ int main()
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, NULL);
 			printf("thread %d in\n", i+1);
-			while (getQCount() < 10)
-			{ /* wait for first thread to push its first set of recommendations */ }
 		}
 
-		for (int32_t i = 0; i < THREAD_NUM; i++) {
+		for (int32_t i = 0; i < THREAD_NUM; i++)
 			pthread_join(tids[i], NULL);
-		}
 	}
 }

@@ -1,20 +1,25 @@
-main: main.o bst.o queue.o HTML_handler.o base64.o
-	gcc main.o bst.o queue.o HTML_handler.o base64.o -lcurl -pthread -o main
+json: main.o lex.yy.o conversions.o panic.o queue.o hash_table.o
+	gcc -o json $^ -lsqlite3 -lssl -lcrypto -pthread
 
-main.o: main.c HTML_handler.h base64.h queue.h bst.h
+main.o: main.c json.h queue.h hash_table.h panic.h
 	gcc -c main.c
 
-HTML_handler.o: HTML_handler.c HTML_handler.h base64.h
-	gcc -c HTML_handler.c
+lex.yy.o: json.l json.h conversions.h panic.h queue.h hash_table.h
+	flex json.l
+	gcc -c lex.yy.c -lfl
+	rm lex.yy.c
 
-base64.o: base64.c base64.h
-	gcc -c base64.c
+conversions.o: conversions.c conversions.h panic.h
+	gcc -c conversions.c
 
 queue.o: queue.c queue.h
 	gcc -c queue.c
 
-bst.o: bst.c bst.h
-	gcc -c bst.c
+hash_table.o: hash_table.c hash_table.h
+	gcc -c hash_table.c
+
+panic.o: panic.c panic.h
+	gcc -c panic.c
 
 clean:
-	rm *.o main
+	rm json *.o
