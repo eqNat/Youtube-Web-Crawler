@@ -55,7 +55,11 @@ void db_init()
 		sqlite3_close(db);
 		PANIC("Cannot open database: %s", sqlite3_errmsg(db));
 	}
-
+	int status;
+	if ((status = sqlite3_exec(db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
+		PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
+	
+	sqlite3_busy_timeout(db, 1000);
 }
 
 _Thread_local int64_t id;
