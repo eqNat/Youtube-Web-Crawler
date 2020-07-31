@@ -285,7 +285,7 @@ _Thread_local _Bool ratings_found;
 			SSL_free(ssl);
 			SSL_CTX_free(ctx);
 			if ((v_table_count - Q_Count) % 100 == 0)
-				printf("hash count: %lu, queue count %lu\n", v_table_count, Q_Count);
+				printf("processed: %lu, waiting: %lu, total: %lu\n", v_table_count-Q_Count, Q_Count, v_table_count);
 			return 1;
 		}
 	}
@@ -294,11 +294,11 @@ _Thread_local _Bool ratings_found;
 "\"currentVideoEndpoint\""|"</body>" {
 	char id_str[11];
 
-	// debuging
-	if (yytext[0] == '<')
-		fprintf(stderr, "currentVideoEndpoint not found: %.11s\n", encode64(id, id_str));
-	if (rec_count == 0)
-		fprintf(stderr, "rec_count = 0: %.11s\n", encode64(id, id_str));
+/*	debugging */
+//	if (yytext[0] == '<')
+//		fprintf(stderr, "currentVideoEndpoint not found: %.11s\n", encode64(id, id_str));
+//	if (rec_count == 0)
+//		fprintf(stderr, "rec_count = 0: %.11s\n", encode64(id, id_str));
 
 	SSL_shutdown(ssl);
 	close(server);
