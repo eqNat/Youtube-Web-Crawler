@@ -133,7 +133,7 @@ _Thread_local _Bool ratings_found;
 	SSL_set_fd(ssl, server);
 	if (SSL_connect(ssl) == -1) {
 		ERR_print_errors_fp(stderr);
-		PANIC("SSL_connect() failed.");
+		PANIC("SSL_connect() failed: %d", errno);
 	}
 
 	

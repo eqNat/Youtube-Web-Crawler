@@ -75,6 +75,8 @@ int64_t C_traverse_insert(struct C_Node** node, int64_t lhalf, int64_t rhalf)
 
 int64_t video_insert(int64_t data)
 {
+	if (!data)
+		return 0;
 	return V_traverse_insert(&v_table[(VIDEO_TABLE_WIDTH - 1) & data], data);
 }
 
