@@ -50,7 +50,7 @@ int main()
 			"dislikes INTEGER(64)," // 
 			"lchannel_id INTEGER(64)," // NULL if video is private
 			"rchannel_id INTEGER(64)," //
-			"rec_1 INTEGER(64),"  // NULL if video is age-restricted
+			"rec_1 INTEGER(64),"  // NULL if video is age-restricted OR private
 			"rec_2 INTEGER(64),"  //
 			"rec_3 INTEGER(64),"  //
 			"rec_4 INTEGER(64),"  //
