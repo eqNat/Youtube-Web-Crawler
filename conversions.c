@@ -53,7 +53,7 @@ int64_t stringToInt64(const char *str)
 // https://webapps.stackexchange.com/a/101153
 
 // The number after each function represents the bit length of its input/output.
-// All functions deal with string IDs of base-64 (including decode128)
+// both functions deal with string IDs of base-64.
 // It is a coincidence that encode64 and decode64 deal with base-64.
 
 char* encode64(uint64_t id, char* url)

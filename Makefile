@@ -4,10 +4,11 @@ crawler: main.o lex.yy.o conversions.o panic.o queue.o hash_table.o
 main.o: main.c json.h queue.h hash_table.h panic.h
 	gcc -c main.c
 
-lex.yy.o: json.l json.h conversions.h panic.h queue.h hash_table.h
-	flex json.l
+lex.yy.o: lex.yy.c json.h conversions.h panic.h queue.h hash_table.h
 	gcc -c lex.yy.c -lfl
-	rm lex.yy.c
+
+lex.yy.c: json.l
+	flex json.l
 
 conversions.o: conversions.c conversions.h panic.h
 	gcc -c conversions.c

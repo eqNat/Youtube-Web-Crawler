@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <pthread.h>
@@ -13,14 +14,90 @@
 
 #define THREAD_NUM 12
 
+const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
 void* runner(void* no_args)
 {
-	yyscan_t scanner;
-	yylex_init(&scanner);
+	char request[] =
+		"GET /watch?v=########### HTTP/1.1\r\n"
+		"Host: www.youtube.com:443\r\n"
+		"Connection: close\r\n"
+		"User-Agent: https_simple\r\n\r\n";
+	struct flex_io io;
+	SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+	if (!ctx)
+		PANIC("SSL_CTX_new() failed.");
 
-	while (yylex(scanner));
+	if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) {
+		sqlite3_close(io.db);
+		PANIC("Cannot open database: %s", sqlite3_errmsg(io.db));
+	}
+	int status;
+	if ((status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
+		PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
+	
+	sqlite3_busy_timeout(io.db, 100);
+
+	yyscan_t scanner;
+
+	yylex_init_extra(&io, &scanner);
+
+	struct sockaddr_in server_address;
+	int64_t id;
+	while (id = pop()) {
+		if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK) {
+			sqlite3_close(io.db);
+			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+		}
+		sqlite3_bind_int64(io.video_stmt, 1, id);
+		int server = socket(AF_INET, SOCK_STREAM, 0);
+		if (server < 0)
+			PANIC("socket() failed. (%d)", errno);
+
+		{// connect()
+			memset(&server_address, 0, sizeof(struct sockaddr_in));
+			server_address.sin_family = AF_INET;
+			server_address.sin_port = htons(443);
+
+			if (inet_pton(AF_INET, "172.217.1.238", &server_address.sin_addr) != 1)
+				PANIC("inet_pton failed");
+
+			for (int i = 0; connect(server, (struct sockaddr*)&server_address, sizeof(server_address)) == -1; i++)
+				if (i == 5)
+					PANIC("connect() failed. (%d)\n", errno);
+		}
+
+		io.ssl = SSL_new(ctx);
+		if (!ctx)
+			PANIC("SSL_new() failed.");
+
+		SSL_set_fd(io.ssl, server);
+		for (int i = 0; SSL_connect(io.ssl) == -1; i++)
+			if (i == 5) {
+				push(id);
+				close(server);
+				continue;
+			}
+
+		encode64(id, request+13);
+
+		SSL_write(io.ssl, request, sizeof(request)-1);
+
+		if (!yylex(scanner))
+			push(id);
+
+		SSL_shutdown(io.ssl);
+		close(server);
+		SSL_free(io.ssl);
+	}
+
+	printf("queue empty\n");
+
+	sqlite3_close(io.db);
+	SSL_CTX_free(ctx);
 
 	yylex_destroy(scanner);
+
 	return NULL;
 }
 
@@ -147,21 +224,15 @@ int main()
 	printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
 	v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 
-	yyscan_t scanner;
-	yylex_init(&scanner);
-	while (Q_Count < THREAD_NUM) {
-		printf("scanning for threads\n");
-		yylex(scanner);
-	}
-
-	yylex_destroy(scanner);
-	
+	printf("starting the threads\n");
 	{// multithreading setup and execution
 		pthread_t tids[THREAD_NUM];
 		for (int32_t i = 0; i < THREAD_NUM; i++) {
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, runner, NULL);
+			while (Q_Count < THREAD_NUM)
+			{/* do nothing until enough IDs are pushed to queue */}
 			printf("thread %d in\n", i+1);
 		}
 
