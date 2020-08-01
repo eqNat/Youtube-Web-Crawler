@@ -27,8 +27,6 @@
 #undef YY_INPUT
 #define YY_INPUT(buf, result, max_size) result = SSL_read(ssl, buf, max_size);
 
-extern void yyerror(const char *message);
-
 const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
 
@@ -56,6 +54,10 @@ void ssl_init()
 
 void db_init()
 {
+	ctx = SSL_CTX_new(TLS_client_method());
+	if (!ctx)
+		PANIC("SSL_CTX_new() failed.");
+
 	if (sqlite3_open("youtube.db", &db) != SQLITE_OK) {
 		sqlite3_close(db);
 		PANIC("Cannot open database: %s", sqlite3_errmsg(db));
@@ -110,10 +112,6 @@ _Thread_local int i;
 
 	sqlite3_bind_int64(video_stmt, 1, id);
 
-	ctx = SSL_CTX_new(TLS_client_method());
-	if (!ctx)
-		PANIC("SSL_CTX_new() failed.");
-
 	// socket()
 	server = socket(AF_INET, SOCK_STREAM, 0);
 	if (server < 0)
@@ -141,7 +139,6 @@ _Thread_local int i;
 		if (i == 5) {
 			push(id);
 			close(server);
-			SSL_CTX_free(ctx);
 			return 1;
 		}
 		//ERR_print_errors_fp(stderr);
@@ -262,8 +259,6 @@ _Thread_local int i;
 		SSL_shutdown(ssl);
 		close(server);
 		SSL_free(ssl);
-		SSL_CTX_free(ctx);
-
 		return 1;
 	}
 
@@ -296,7 +291,6 @@ _Thread_local int i;
 			SSL_shutdown(ssl);
 			close(server);
 			SSL_free(ssl);
-			SSL_CTX_free(ctx);
 			if ((v_table_count - Q_Count) % 100 == 0)
 				printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
 				v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
@@ -317,7 +311,6 @@ _Thread_local int i;
 	SSL_shutdown(ssl);
 	close(server);
 	SSL_free(ssl);
-	SSL_CTX_free(ctx);
 	push(id);
 	return 1;
 }
