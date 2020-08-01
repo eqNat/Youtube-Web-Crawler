@@ -46,12 +46,16 @@ _Thread_local char request[] =
 _Thread_local int server;
 _Thread_local char title[512];
 
-void db_init()
+__attribute__ ((constructor))
+void ssl_init()
 {
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
 	SSL_load_error_strings();
+}
 
+void db_init()
+{
 	if (sqlite3_open("youtube.db", &db) != SQLITE_OK) {
 		sqlite3_close(db);
 		PANIC("Cannot open database: %s", sqlite3_errmsg(db));

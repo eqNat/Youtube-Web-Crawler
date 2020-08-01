@@ -11,7 +11,7 @@
 #include "hash_table.h"
 #include "panic.h"
 
-#define THREAD_NUM 200
+#define THREAD_NUM 12
 
 void* runner(void* no_args)
 {
