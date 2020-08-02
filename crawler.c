@@ -17,17 +17,15 @@
 #include "conversions.h"
 #include "panic.h"
 
-const struct sockaddr_in yt_address;
+struct sockaddr_in yt_address;
 
 __attribute__ ((constructor))
 void yt_address_init()
 {
-	struct sockaddr_in *p_address = &yt_address;
+	yt_address.sin_family = AF_INET;
+	yt_address.sin_port = htons(443);
 
-	p_address->sin_family = AF_INET;
-	p_address->sin_port = htons(443);
-
-	if (inet_pton(AF_INET, "172.217.1.238", &p_address->sin_addr) != 1)
+	if (inet_pton(AF_INET, "172.217.1.238", &yt_address.sin_addr) != 1)
 		PANIC("inet_pton failed");
 }
 

@@ -1,6 +1,5 @@
 #include "panic.h"
 
-__attribute__((noreturn))
 void nc_panic(const char* file_name, int line_number, const char* format, ...)
 {
 	va_list args;
