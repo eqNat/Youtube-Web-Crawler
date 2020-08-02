@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <sqlite3.h> 
+#include <unistd.h>
 
 #include "crawler.h"
 #include "conversions.h"
@@ -123,8 +124,7 @@ int main()
 		sqlite3_close(db);
 	}
 
-	char start_id[] = "3nrLc_JOF7k"; // ordinary
-	//char start_id[] = "x71MDrC400A"; // age-restricted
+	char start_id[] = "3nrLc_JOF7k";
 	if (v_table_count == 0) {
 		int64_t start_id_int = decode64(start_id);
 
@@ -141,8 +141,8 @@ int main()
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			pthread_create(&tids[i], &attr, crawler_wrapper, NULL);
-			while (Q_Count < THREAD_NUM)
-			{/* do nothing until enough IDs are pushed to queue */}
+			while (Q_Count < 5)
+				sleep(1);
 			printf("thread %d in\n", i+1);
 		}
 
