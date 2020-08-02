@@ -14,13 +14,9 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-typedef void* yyscan_t;
 
-struct flex_io { // yyextra
-	SSL *ssl;
-	sqlite3 *db;
-	sqlite3_stmt *video_stmt;
-};
+typedef void* yyscan_t;
+struct flex_io;
 
 int yylex(yyscan_t);
 int yylex_destroy(yyscan_t);

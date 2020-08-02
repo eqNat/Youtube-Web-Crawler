@@ -11,21 +11,21 @@
 #include "hash_table.h"
 
 #undef YY_INPUT
-#define YY_INPUT(buf, result, max_size) result = SSL_read(yyextra->ssl, buf, max_size);
+#define YY_INPUT(buf, result, max_size)	result = SSL_read(yyextra->ssl, buf, max_size)
+
+// #define YY_USER_ACTION fprintf(stderr, "%s", yytext);
+
+struct flex_io { // yyextra
+	SSL *ssl;
+	sqlite3 *db;
+	sqlite3_stmt *video_stmt;
+};
 
 const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
 
 _Thread_local sqlite3_stmt *channel_stmt;
 _Thread_local char channel_name[256];
 _Thread_local char title[512];
-
-__attribute__ ((constructor))
-void ssl_init()
-{
-	SSL_library_init();
-	OpenSSL_add_all_algorithms();
-	SSL_load_error_strings();
-}
 
 _Thread_local int rec_count;
 _Thread_local _Bool ratings_found;

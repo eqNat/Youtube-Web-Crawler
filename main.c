@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <sqlite3.h> 
 
+#include "crawler.h"
 #include "json.h"
 #include "conversions.h"
 #include "queue.h"
@@ -14,82 +15,30 @@
 
 #define THREAD_NUM 12
 
-const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-
-void* runner(void* no_args)
+void* crawler_wrapper(void* no_args)
 {
-	char request[] =
-		"GET /watch?v=########### HTTP/1.1\r\n"
-		"Host: www.youtube.com:443\r\n"
-		"Connection: close\r\n"
-		"User-Agent: https_simple\r\n\r\n";
-	struct flex_io io;
+	struct flex_io io; // yyextra
 	SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx)
 		PANIC("SSL_CTX_new() failed.");
 
-	if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) {
-		sqlite3_close(io.db);
-		PANIC("Cannot open database: %s", sqlite3_errmsg(io.db));
+	{// Open database, 
+		if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) {
+			sqlite3_close(io.db);
+			PANIC("Cannot open database: %s", sqlite3_errmsg(io.db));
+		}
+		int status;
+		if ((status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
+			PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
+		
+		sqlite3_busy_timeout(io.db, 100);
 	}
-	int status;
-	if ((status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
-		PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
-	
-	sqlite3_busy_timeout(io.db, 100);
 
 	yyscan_t scanner;
 
 	yylex_init_extra(&io, &scanner);
 
-	struct sockaddr_in server_address;
-	int64_t id;
-	while (id = pop()) {
-		if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK) {
-			sqlite3_close(io.db);
-			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
-		}
-		sqlite3_bind_int64(io.video_stmt, 1, id);
-		int server = socket(AF_INET, SOCK_STREAM, 0);
-		if (server < 0)
-			PANIC("socket() failed. (%d)", errno);
-
-		{// connect()
-			memset(&server_address, 0, sizeof(struct sockaddr_in));
-			server_address.sin_family = AF_INET;
-			server_address.sin_port = htons(443);
-
-			if (inet_pton(AF_INET, "172.217.1.238", &server_address.sin_addr) != 1)
-				PANIC("inet_pton failed");
-
-			for (int i = 0; connect(server, (struct sockaddr*)&server_address, sizeof(server_address)) == -1; i++)
-				if (i == 5)
-					PANIC("connect() failed. (%d)\n", errno);
-		}
-
-		io.ssl = SSL_new(ctx);
-		if (!ctx)
-			PANIC("SSL_new() failed.");
-
-		SSL_set_fd(io.ssl, server);
-		for (int i = 0; SSL_connect(io.ssl) == -1; i++)
-			if (i == 5) {
-				push(id);
-				close(server);
-				continue;
-			}
-
-		encode64(id, request+13);
-
-		SSL_write(io.ssl, request, sizeof(request)-1);
-
-		if (!yylex(scanner))
-			push(id);
-
-		SSL_shutdown(io.ssl);
-		close(server);
-		SSL_free(io.ssl);
-	}
+	crawler(&io, scanner, ctx);
 
 	printf("queue empty\n");
 
@@ -230,7 +179,7 @@ int main()
 		for (int32_t i = 0; i < THREAD_NUM; i++) {
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
-			pthread_create(&tids[i], &attr, runner, NULL);
+			pthread_create(&tids[i], &attr, crawler_wrapper, NULL);
 			while (Q_Count < THREAD_NUM)
 			{/* do nothing until enough IDs are pushed to queue */}
 			printf("thread %d in\n", i+1);
