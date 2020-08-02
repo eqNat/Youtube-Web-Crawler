@@ -52,10 +52,6 @@ int64_t stringToInt64(const char *str)
 // This is how I learned to convert a Youtube ID to a 64 bit integer:
 // https://webapps.stackexchange.com/a/101153
 
-// The number after each function represents the bit length of its input/output.
-// both functions deal with string IDs of base-64.
-// It is a coincidence that encode64 and decode64 deal with base-64.
-
 char* encode64(uint64_t id, char* url)
 {
 	uint8_t temp = (id & 0xF) << 2;
