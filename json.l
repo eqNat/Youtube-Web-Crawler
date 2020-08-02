@@ -1,8 +1,9 @@
 %{
 #include <string.h>
 #include <stdint.h>
-#include <ctype.h>
 #include <sqlite3.h>
+
+#include <openssl/ssl.h>
 
 #include "json.h"
 #include "conversions.h"

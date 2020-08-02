@@ -1,11 +1,11 @@
 crawler: main.o crawler.o lex.yy.o conversions.o panic.o queue.o hash_table.o
 	gcc -o $@ $^ -lsqlite3 -lssl -lcrypto -pthread
 
-main.o: main.c json.h queue.h hash_table.h panic.h crawler.h conversions.h
+main.o: main.c queue.h hash_table.h panic.h crawler.h conversions.h
 	gcc -c main.c -O3
 
 crawler.o: crawler.c crawler.h json.h queue.h panic.h conversions.h
-	gcc -c crawler.c -O3
+	gcc -c crawler.c -O3 -Wno-discarded-qualifiers
 
 lex.yy.o: lex.yy.c json.h conversions.h panic.h queue.h hash_table.h
 	gcc -c lex.yy.c -lfl -O3
@@ -26,4 +26,4 @@ panic.o: panic.c panic.h
 	gcc -c panic.c -O3
 
 clean:
-	rm *.o
+	rm lex.yy.c *.o

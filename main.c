@@ -1,13 +1,9 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
 #include <stdint.h>
 #include <pthread.h>
 #include <sqlite3.h> 
 
 #include "crawler.h"
-#include "json.h"
 #include "conversions.h"
 #include "queue.h"
 #include "hash_table.h"
@@ -15,44 +11,9 @@
 
 #define THREAD_NUM 12
 
-void* crawler_wrapper(void* no_args)
-{
-	struct flex_io io; // yyextra
-	SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
-	if (!ctx)
-		PANIC("SSL_CTX_new() failed.");
-
-	{// Open database, 
-		if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) {
-			sqlite3_close(io.db);
-			PANIC("Cannot open database: %s", sqlite3_errmsg(io.db));
-		}
-		int status;
-		if ((status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
-			PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
-		
-		sqlite3_busy_timeout(io.db, 100);
-	}
-
-	yyscan_t scanner;
-
-	yylex_init_extra(&io, &scanner);
-
-	crawler(&io, scanner, ctx);
-
-	printf("queue empty\n");
-
-	sqlite3_close(io.db);
-	SSL_CTX_free(ctx);
-
-	yylex_destroy(scanner);
-
-	return NULL;
-}
-
 static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 {
-   for(int i = 0; i < argc; i++)
+   for (int i = 0; i < argc; i++)
       printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
    printf("\n");
    return 0;
@@ -60,7 +21,7 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 
 int main()
 {
-	{
+	{// create database if not exists, else load database into cache (queue and hashmap)
 		sqlite3 *db;
 		char *zErrMsg = 0;
 
