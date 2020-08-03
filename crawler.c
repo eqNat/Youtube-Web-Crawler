@@ -13,9 +13,9 @@
 
 #include "crawler.h"
 #include "json.h"
-#include "queue.h"
 #include "conversions.h"
 #include "panic.h"
+#include "dbcache/queue.h"
 
 struct sockaddr_in yt_address;
 

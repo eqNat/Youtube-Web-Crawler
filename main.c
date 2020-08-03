@@ -6,9 +6,9 @@
 
 #include "crawler.h"
 #include "conversions.h"
-#include "queue.h"
-#include "hash_table.h"
 #include "panic.h"
+#include "dbcache/queue.h"
+#include "dbcache/hash_table.h"
 
 #define THREAD_NUM 12
 

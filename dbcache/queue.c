@@ -4,7 +4,6 @@
 #include <pthread.h>
 
 #include "queue.h"
-#include "conversions.h"
 
 struct Q_Node {
 	struct Q_Node* next;

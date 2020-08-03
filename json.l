@@ -8,8 +8,8 @@
 #include "json.h"
 #include "conversions.h"
 #include "panic.h"
-#include "queue.h"
-#include "hash_table.h"
+#include "dbcache/queue.h"
+#include "dbcache/hash_table.h"
 
 #undef YY_INPUT
 #define YY_INPUT(buf, result, max_size)	result = SSL_read(yyextra->ssl, buf, max_size)
