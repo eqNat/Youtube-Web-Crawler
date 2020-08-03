@@ -81,9 +81,8 @@ int main()
 			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
 
 		int32_t status;
-		while ((status = sqlite3_step(res)) == SQLITE_ROW) {
+		while ((status = sqlite3_step(res)) == SQLITE_ROW)
 			video_insert(sqlite3_column_int64(res, 0));
-		}
 
 		if (status != SQLITE_DONE)
 			PANIC("step failed");
@@ -124,13 +123,10 @@ int main()
 		sqlite3_close(db);
 	}
 
-	char start_id[] = "3nrLc_JOF7k";
-	if (v_table_count == 0) {
-		int64_t start_id_int = decode64(start_id);
+	int64_t start_id = decode64("3nrLc_JOF7k");
+	if (video_insert(start_id))
+		push(start_id);
 
-		push(start_id_int);
-		video_insert(start_id_int);
-	}
 	printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
 	v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 

@@ -5,7 +5,7 @@ main.o: main.c queue.h hash_table.h panic.h crawler.h conversions.h
 	gcc -c main.c -O3
 
 crawler.o: crawler.c crawler.h json.h queue.h panic.h conversions.h
-	gcc -c crawler.c -O3 -Wno-discarded-qualifiers
+	gcc -c crawler.c -O3
 
 lex.yy.o: lex.yy.c json.h conversions.h panic.h queue.h hash_table.h
 	gcc -c lex.yy.c -lfl -O3

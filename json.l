@@ -16,17 +16,15 @@
 
 // #define YY_USER_ACTION fprintf(stderr, "%s", yytext);
 
-struct flex_io { // yyextra
+struct flex_io {
 	SSL *ssl;
 	sqlite3 *db;
 	sqlite3_stmt *video_stmt;
 };
 
-const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
 
 _Thread_local sqlite3_stmt *channel_stmt;
 _Thread_local char channel_name[256];
-_Thread_local char title[512];
 
 _Thread_local int rec_count;
 _Thread_local _Bool ratings_found;
@@ -76,9 +74,10 @@ _Thread_local _Bool ratings_found;
 
 <PRIMARY_INFO>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
+		static _Thread_local char title[512];
 		memcpy(title, yytext+26, yyleng-25);
 		sqlite3_bind_text(yyextra->video_stmt, 2, title, yyleng-25, SQLITE_STATIC);
-		// For some reason the following line will not work
+		/* For some reason the following line will not work */
 		// sqlite3_bind_text(yyextra->video_stmt, 2, yytext+26, yyleng-25, SQLITE_STATIC);
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
@@ -112,6 +111,7 @@ _Thread_local _Bool ratings_found;
 		sqlite3_bind_int64(yyextra->video_stmt, 6, l_id);
 		sqlite3_bind_int64(yyextra->video_stmt, 7, r_id);
 		if (channel_insert(l_id, r_id)) {
+			static const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
 			if (sqlite3_prepare_v2(yyextra->db, sql_channel_insert, -1, &channel_stmt, NULL) != SQLITE_OK) {
 				sqlite3_close(yyextra->db);
 				PANIC("Failed to prepare statement: %s", sqlite3_errmsg(yyextra->db));

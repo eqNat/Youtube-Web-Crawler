@@ -71,7 +71,7 @@ void crawler(struct flex_io *io, yyscan_t scanner, SSL_CTX *ctx)
 			}
 	}
 
-	{// send request
+	{// send http request
 		static _Thread_local char request[] =
 			"GET /watch?v=########### HTTP/1.1\r\n"
 			"Host: www.youtube.com:443\r\n"
