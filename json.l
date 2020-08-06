@@ -14,6 +14,7 @@
 #undef YY_INPUT
 #define YY_INPUT(buf, result, max_size)	result = SSL_read(yyextra->ssl, buf, max_size)
 
+/* debugging */
 // #define YY_USER_ACTION fprintf(stderr, "%s", yytext);
 
 struct flex_io {
@@ -21,7 +22,6 @@ struct flex_io {
 	sqlite3 *db;
 	sqlite3_stmt *video_stmt;
 };
-
 
 _Thread_local sqlite3_stmt *channel_stmt;
 _Thread_local char channel_name[256];
@@ -67,18 +67,13 @@ _Thread_local _Bool ratings_found;
 		int status;
 		if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
 			PANIC("sqlite3_step returned %d", status);
-
 		return 1;
 	}
 }
 
 <PRIMARY_INFO>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
-		static _Thread_local char title[512];
-		memcpy(title, yytext+26, yyleng-25);
-		sqlite3_bind_text(yyextra->video_stmt, 2, title, yyleng-25, SQLITE_STATIC);
-		/* For some reason the following line will not work */
-		// sqlite3_bind_text(yyextra->video_stmt, 2, yytext+26, yyleng-25, SQLITE_STATIC);
+		sqlite3_bind_text(yyextra->video_stmt, 2, yytext+26, yyleng-25, SQLITE_TRANSIENT);
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
 		sqlite3_bind_int64(yyextra->video_stmt, 3, stringToInt64(yytext+27));
@@ -148,7 +143,6 @@ _Thread_local _Bool ratings_found;
 		int status;
 		if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
 			PANIC("sqlite3_step returned %d", status);
-
 		return 1;
 	}
 
