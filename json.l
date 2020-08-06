@@ -23,11 +23,6 @@ struct flex_io {
 	sqlite3_stmt *video_stmt;
 };
 
-_Thread_local sqlite3_stmt *channel_stmt;
-_Thread_local char channel_name[256];
-
-_Thread_local int rec_count;
-_Thread_local _Bool ratings_found;
 %}
 
 %option noyywrap stack reentrant
@@ -43,8 +38,10 @@ _Thread_local _Bool ratings_found;
 %s COMPACT_VIDEO_RENDERER
 
 %%
- rec_count = 0;
- ratings_found = 0;
+ int rec_count = 0;
+ _Bool ratings_found = 0;
+ sqlite3_stmt *channel_stmt;
+ char channel_name[256];
 
 "window[\"ytInitialData\"] = " {
 	yy_push_state(YTINITIALDATA, yyscanner);
