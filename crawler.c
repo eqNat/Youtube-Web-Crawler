@@ -39,7 +39,6 @@ struct flex_io { // yyextra
 
 void crawler(struct flex_io *io, yyscan_t scanner, SSL_CTX *ctx)
 {
-	yt_address_init();
 	int64_t id = pop();
 	if (!id)
 		return;
