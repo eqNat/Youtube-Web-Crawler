@@ -12,14 +12,6 @@
 
 #define THREAD_NUM 12
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName)
-{
-   for (int i = 0; i < argc; i++)
-      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-   printf("\n");
-   return 0;
-}
-
 __attribute__ ((noreturn))
 void *logger(void *no_args)
 {
