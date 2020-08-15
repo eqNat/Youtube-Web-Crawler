@@ -15,7 +15,7 @@
 #define YY_INPUT(buf, result, max_size)	result = SSL_read(yyextra->ssl, buf, max_size)
 
 /* debugging */
-// #define YY_USER_ACTION fprintf(stderr, "%s", yytext);
+//#define YY_USER_ACTION fprintf(stderr, "%s", yytext);
 
 struct flex_io {
 	SSL *ssl;
@@ -23,11 +23,14 @@ struct flex_io {
 	sqlite3_stmt *video_stmt;
 };
 
+_Thread_local _Bool first_scan = 1;
+
 %}
 
 %option noyywrap stack reentrant
 %option extra-type="struct flex_io *"
 
+%s HTTP_HEADER
 %s YTINITIALDATA
 %s YTINITIALPLAYERRESPONSE
 %s PRIMARY_INFO
@@ -38,21 +41,39 @@ struct flex_io {
 %s COMPACT_VIDEO_RENDERER
 
 %%
+
+ if (first_scan)
+	BEGIN(HTTP_HEADER);
+ else
+	BEGIN(INITIAL);
+
  int rec_count = 0;
  _Bool ratings_found = 0;
  sqlite3_stmt *channel_stmt;
  char channel_name[256];
 
+<HTTP_HEADER>{
+	"HTTP/1.1 4"[0-9]{2}* {
+		PANIC("%.*s", yyleng, yytext);
+	}
+
+	"\r\n\r\n" {
+		first_scan = 0;
+		BEGIN(INITIAL);
+	}
+}
+
 "window[\"ytInitialData\"] = " {
-	yy_push_state(YTINITIALDATA, yyscanner);
+	BEGIN(YTINITIALDATA);
 }
 
 <YTINITIALDATA>{
 	"\"videoPrimaryInfoRenderer\"" {
-		yy_push_state(PRIMARY_INFO, yyscanner);
+		BEGIN(PRIMARY_INFO);
 	}
+
 	"window[\"ytInitialPlayerResponse\"]" {
-		yy_push_state(YTINITIALPLAYERRESPONSE, yyscanner);
+		BEGIN(YTINITIALPLAYERRESPONSE);
 	}
 }
 
@@ -87,8 +108,7 @@ struct flex_io {
 			sqlite3_bind_null(yyextra->video_stmt, 4);
 			sqlite3_bind_null(yyextra->video_stmt, 5);
 		}
-		yy_pop_state(yyscanner);
-		yy_push_state(SECONDARY_RENDERER, yyscanner);
+		BEGIN(SECONDARY_RENDERER);
 	}
 }
 
@@ -111,15 +131,14 @@ struct flex_io {
 			sqlite3_bind_int64(channel_stmt, 1, l_id);
 			sqlite3_bind_int64(channel_stmt, 2, r_id);
 			sqlite3_bind_text(channel_stmt, 3, channel_name, strlen(channel_name), SQLITE_STATIC);
-			yy_push_state(SUB_COUNT, yyscanner);
+			BEGIN(SUB_COUNT);
 		}
 	}
 	"\"metadataRowContainer\"" {
-		yy_push_state(METADATA, yyscanner);
+		BEGIN(METADATA);
 	}
 	"\"secondaryResults\"" {
-		yy_pop_state(yyscanner);
-		yy_push_state(SECONDARY_RESULTS, yyscanner);
+		BEGIN(SECONDARY_RESULTS);
 	}
 }
 
@@ -129,7 +148,7 @@ struct flex_io {
 	if ((status = sqlite3_step(channel_stmt)) != SQLITE_DONE)
 		PANIC("sqlite3_step returned %d", status);
 	sqlite3_finalize(channel_stmt);
-	yy_pop_state(yyscanner);
+	BEGIN(SECONDARY_RENDERER);
 }
 
 <METADATA>{
@@ -144,13 +163,13 @@ struct flex_io {
 	}
 
 	"\"collapsedItemCount\"" {
-		yy_pop_state(yyscanner);
+		BEGIN(SECONDARY_RENDERER);
 	}
 }
 
 <SECONDARY_RESULTS>{
 	"\"compactVideoRenderer\"" {
-		yy_push_state(COMPACT_VIDEO_RENDERER, yyscanner);
+		BEGIN(COMPACT_VIDEO_RENDERER);
 	}
 }
 
@@ -161,29 +180,20 @@ struct flex_io {
 		if (video_insert(rec))
 			push(rec);
 
-		yy_pop_state(yyscanner);
+		BEGIN(SECONDARY_RESULTS);
 		if (++rec_count == 18) {
 			int status;
 			if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
 				PANIC("sqlite3_step returned %d", status);
 			sqlite3_finalize(yyextra->video_stmt);
 
-			if ((v_table_count - Q_Count) % 100 == 0)
-				printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
-				v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 			return 1;
 		}
 	}
 }
 
-"\"currentVideoEndpoint\""|"</body>" {
-/*	debugging */
-//	char id_str[11];
-//	if (yytext[0] == '<')
-//		fprintf(stderr, "currentVideoEndpoint not found: %.11s\n", encode64(id, id_str));
-//	if (rec_count == 0)
-//		fprintf(stderr, "rec_count = 0: %.11s\n", encode64(id, id_str));
-
+"</html>" {
+	first_scan = 1;
 	return 0;
 }
 

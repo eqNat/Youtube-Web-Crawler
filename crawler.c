@@ -47,46 +47,23 @@ void crawler(struct flex_io *io, yyscan_t scanner, SSL_CTX *ctx)
 		sqlite3_close(io->db);
 		PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io->db));
 	}
-	sqlite3_bind_int64(io->video_stmt, 1, id);
-
-	int client = socket(AF_INET, SOCK_STREAM, 0);
-	if (client < 0)
-		PANIC("socket() failed. (%d)", errno);
-
-	{// securely connect to Youtube
-		for (int i = 0; connect(client, (struct sockaddr*)&yt_address, sizeof(yt_address)) == -1; i++)
-			if (i == 5)
-				PANIC("connect() failed. (%d)\n", errno);
-
-		io->ssl = SSL_new(ctx);
-		if (!ctx)
-			PANIC("SSL_new() failed.");
-
-		SSL_set_fd(io->ssl, client);
-		for (int i = 0; SSL_connect(io->ssl) == -1; i++)
-			if (i == 5) {
-				close(client);
-				PANIC("SSL_connect() failed. (%d)\n", errno);
-			}
-	}
+	sqlite3_bind_int64(io->video_stmt, 1,id);
 
 	{// send http request
 		static _Thread_local char request[] =
 			"GET /watch?v=########### HTTP/1.1\r\n"
 			"Host: www.youtube.com:443\r\n"
-			"Connection: close\r\n"
+			"Connection: keep-alive\r\n"
 			"User-Agent: https_simple\r\n\r\n";
 
 		encode64(id, request+13);
 		SSL_write(io->ssl, request, sizeof(request)-1);
 	}
 
-	if (!yylex(scanner))
-		push(id);
-
-	SSL_shutdown(io->ssl);
-	close(client);
-	SSL_free(io->ssl);
+	if (yylex(scanner))
+		yylex(scanner); // scan for end of file (</html>)
+	else
+		push(id); // end of file already found due to insufficient data
 
 	crawler(io, scanner, ctx); // tail-recursive call
 }
@@ -110,11 +87,36 @@ void* crawler_wrapper(void* no_args)
 		sqlite3_busy_timeout(io.db, 100);
 	}
 
+	int client;
+	{// securely connect to Youtube
+		client = socket(AF_INET, SOCK_STREAM, 0);
+		if (client < 0)
+			PANIC("socket() failed. (%d)", errno);
+		for (int i = 0; connect(client, (struct sockaddr*)&yt_address, sizeof(yt_address)) == -1; i++)
+			if (i == 5)
+				PANIC("connect() failed. (%d)\n", errno);
+
+		io.ssl = SSL_new(ctx);
+		if (!ctx)
+			PANIC("SSL_new() failed.");
+
+		SSL_set_fd(io.ssl, client);
+		for (int i = 0; SSL_connect(io.ssl) == -1; i++)
+			if (i == 5) {
+				close(client);
+				PANIC("SSL_connect() failed. (%d)\n", errno);
+			}
+	}
+
 	yyscan_t scanner;
 
 	yylex_init_extra(&io, &scanner);
 
 	crawler(&io, scanner, ctx);
+
+	SSL_shutdown(io.ssl);
+	close(client);
+	SSL_free(io.ssl);
 
 	printf("queue empty\n");
 

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
-#include <sqlite3.h> 
+#include <sqlite3.h>
 #include <unistd.h>
 
 #include "crawler.h"
@@ -18,6 +18,15 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
       printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
    printf("\n");
    return 0;
+}
+
+__attribute__ ((noreturn))
+void *logger(void *no_args)
+{
+	printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
+		v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
+	sleep(1);
+	logger(NULL);
 }
 
 int main()
@@ -127,22 +136,30 @@ int main()
 	if (video_insert(start_id))
 		push(start_id);
 
-	printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
-	v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 
 	printf("starting the threads\n");
 	{// multithreading setup and execution
-		pthread_t tids[THREAD_NUM];
-		for (int32_t i = 0; i < THREAD_NUM; i++) {
+		pthread_t tids[THREAD_NUM+1];
+
+		{// set up logger
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
-			pthread_create(&tids[i], &attr, crawler_wrapper, NULL);
-			while (Q_Count < 5)
-				sleep(1);
-			printf("thread %d in\n", i+1);
+			pthread_create(&tids[0], &attr, logger, NULL);
 		}
 
-		for (int32_t i = 0; i < THREAD_NUM; i++)
+		{// set up crawlers
+			for (int32_t i = 1; i < THREAD_NUM+1; i++) {
+				pthread_attr_t attr;
+				pthread_attr_init(&attr);
+				pthread_create(&tids[i], &attr, crawler_wrapper, NULL);
+				while (Q_Count < 5)
+					sleep(1);
+				printf("thread %d in\n", i);
+			}
+		}
+
+		// We don't care about joining with logger
+		for (int32_t i = 1; i < THREAD_NUM+1; i++)
 			pthread_join(tids[i], NULL);
 	}
 }
