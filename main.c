@@ -23,8 +23,10 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 __attribute__ ((noreturn))
 void *logger(void *no_args)
 {
-	printf("processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
-		v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
+	static uint64_t seconds = 0;
+
+	printf("%lu: processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
+		seconds++, v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 	sleep(1);
 	logger(NULL);
 }
