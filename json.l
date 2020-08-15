@@ -27,7 +27,7 @@ _Thread_local _Bool first_scan = 1;
 
 %}
 
-%option noyywrap stack reentrant
+%option noyywrap reentrant
 %option extra-type="struct flex_io *"
 
 %s HTTP_HEADER
@@ -178,7 +178,7 @@ _Thread_local _Bool first_scan = 1;
 		int64_t rec = decode64(yytext+11);
 		sqlite3_bind_int64(yyextra->video_stmt, rec_count+8, rec);
 		if (video_insert(rec))
-			push(rec);
+			enqueue(rec);
 
 		BEGIN(SECONDARY_RESULTS);
 		if (++rec_count == 18) {

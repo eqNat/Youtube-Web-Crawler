@@ -17,11 +17,11 @@ uint64_t Q_Count = 0;
 
 pthread_mutex_t key;
 
-// Don't push in the value 0, since pop() returns 0 when the queue is empty
-void push(int64_t data)
+// Don't enqueue in the value 0, since dequeue() returns 0 when the queue is empty
+void enqueue(int64_t data)
 {
 	if (data == 0)
-		fprintf(stderr, "Error: Queue prohibits zero value to be pushed.\n"), exit(1);
+		fprintf(stderr, "Error: Queue prohibits zero value to be enqueueed.\n"), exit(1);
 	pthread_mutex_lock(&key);
 	if (front == NULL) {
 		back = calloc(sizeof(struct Q_Node), 1);
@@ -38,8 +38,8 @@ void push(int64_t data)
 }
 
 // returns 0 if queue is empty
-// else, returns popped value
-int64_t pop()
+// else, returns dequeued value
+int64_t dequeue()
 {
 	pthread_mutex_lock(&key);
 	if (front == NULL) {

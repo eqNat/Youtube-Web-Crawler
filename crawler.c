@@ -1,4 +1,5 @@
 #include <stdio.h>
+
 #include <sqlite3.h> 
 
 #include <sys/types.h>
@@ -29,59 +30,59 @@ void yt_address_init()
 		PANIC("inet_pton failed");
 }
 
-const char sql_video_insert[] = "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-
 struct flex_io { // yyextra
 	SSL *ssl;
 	sqlite3 *db;
 	sqlite3_stmt *video_stmt;
-};
+} _Thread_local io;
 
-void crawler(struct flex_io *io, yyscan_t scanner, SSL_CTX *ctx)
+void crawler(yyscan_t scanner)
 {
-	int64_t id = pop();
+	int64_t id = dequeue();
 	if (!id)
-		return;
+		return; // queue is empty
 
-	if (sqlite3_prepare_v2(io->db, sql_video_insert, -1, &(io->video_stmt), NULL) != SQLITE_OK) {
-		sqlite3_close(io->db);
-		PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io->db));
+	{// prepare and bind statement
+		static const char sql_video_insert[] =
+			"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+		if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
+			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+
+		sqlite3_bind_int64(io.video_stmt, 1,id);
 	}
-	sqlite3_bind_int64(io->video_stmt, 1,id);
 
 	{// send http request
 		static _Thread_local char request[] =
-			"GET /watch?v=########### HTTP/1.1\r\n"
+			"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
 			"Host: www.youtube.com:443\r\n"
 			"Connection: keep-alive\r\n"
 			"User-Agent: https_simple\r\n\r\n";
 
 		encode64(id, request+13);
-		SSL_write(io->ssl, request, sizeof(request)-1);
+		SSL_write(io.ssl, request, sizeof(request)-1);
 	}
 
 	if (yylex(scanner))
 		yylex(scanner); // scan for end of file (</html>)
 	else
-		push(id); // end of file already found due to insufficient data
+		enqueue(id); // end of file already found due to insufficient data
 
-	crawler(io, scanner, ctx); // tail-recursive call
+	crawler(scanner); // tail-recursive call
 }
 
 void* crawler_wrapper(void* no_args)
 {
-	struct flex_io io; // yyextra
 	SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx)
 		PANIC("SSL_CTX_new() failed.");
 
-	{// Open database, 
-		if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) {
-			sqlite3_close(io.db);
+	{// Open database
+		if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) 
 			PANIC("Cannot open database: %s", sqlite3_errmsg(io.db));
-		}
-		int status;
-		if ((status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL)) != SQLITE_OK)
+
+		int status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL);
+		if (status != SQLITE_OK)
 			PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
 		
 		sqlite3_busy_timeout(io.db, 100);
@@ -89,40 +90,36 @@ void* crawler_wrapper(void* no_args)
 
 	int client;
 	{// securely connect to Youtube
-		client = socket(AF_INET, SOCK_STREAM, 0);
-		if (client < 0)
+		if ((client = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 			PANIC("socket() failed. (%d)", errno);
-		for (int i = 0; connect(client, (struct sockaddr*)&yt_address, sizeof(yt_address)) == -1; i++)
-			if (i == 5)
-				PANIC("connect() failed. (%d)\n", errno);
+
+		if (connect(client, (struct sockaddr*)&yt_address, sizeof(yt_address)) < 0)
+			PANIC("connect() failed. (%d)", errno);
 
 		io.ssl = SSL_new(ctx);
 		if (!ctx)
 			PANIC("SSL_new() failed.");
 
 		SSL_set_fd(io.ssl, client);
-		for (int i = 0; SSL_connect(io.ssl) == -1; i++)
-			if (i == 5) {
-				close(client);
-				PANIC("SSL_connect() failed. (%d)\n", errno);
-			}
+		if (SSL_connect(io.ssl) < 0)
+			PANIC("SSL_connect() failed. (%d)", errno);
 	}
 
 	yyscan_t scanner;
-
 	yylex_init_extra(&io, &scanner);
 
-	crawler(&io, scanner, ctx);
+	/*************************/
+	/**/ crawler(scanner); /**/
+	/*************************/
 
+	printf("Thread leaving due to empty queue\n");
+
+	// cleanup
 	SSL_shutdown(io.ssl);
 	close(client);
 	SSL_free(io.ssl);
-
-	printf("queue empty\n");
-
-	sqlite3_close(io.db);
 	SSL_CTX_free(ctx);
-
+	sqlite3_close(io.db);
 	yylex_destroy(scanner);
 
 	return NULL;

@@ -20,6 +20,7 @@ void *logger(void *no_args)
 	printf("%lu: processed: %lu, waiting: %lu, total: %lu, channels: %lu\n",
 		seconds++, v_table_count-Q_Count, Q_Count, v_table_count, c_table_count);
 	sleep(1);
+
 	logger(NULL);
 }
 
@@ -121,15 +122,14 @@ int main()
 			for (int32_t i = 0; i < 18; i++) {
 				int64_t recommendation = sqlite3_column_int64(res, i);
 				if (video_insert(recommendation))
-					push(recommendation);
+					enqueue(recommendation);
 			}
 		sqlite3_close(db);
 	}
 
 	int64_t start_id = decode64("3nrLc_JOF7k");
 	if (video_insert(start_id))
-		push(start_id);
-
+		enqueue(start_id);
 
 	printf("starting the threads\n");
 	{// multithreading setup and execution
