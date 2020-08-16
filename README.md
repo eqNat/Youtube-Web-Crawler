@@ -2,9 +2,15 @@
 
 Dependencies: sqlite3 and openssl
 
-To compile, type 'make'
+To compile, type
 
-To run, type './crawler'
+	make
+
+To run, type
+	
+	./crawler [thread_num]
+
+Without specifying an argument, the number of threads defaults to four.
 
 This crawler will create a sqlite3 database file named 'youtube.db'. The
 database consists of two tables: 'videos' and 'channels'. The tables are
@@ -47,9 +53,3 @@ created using the following statements:
 	name VARCHAR(20) NOT NULL,
 	subscribers INTEGER(64), -- NULL if subscriber count is hidden
 	PRIMARY KEY (l_id, r_id));
-
-You can run the program using
-	
-	./crawler [thread_num]
-
-Without specifying an argument, the number of threads defaults to four.
