@@ -38,9 +38,33 @@ struct flex_io { // yyextra
 	sqlite3_stmt *video_stmt;
 } _Thread_local io;
 
+void send_request(int64_t id)
+{
+	static _Thread_local char request[] =
+		"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
+		"Host: www.youtube.com:443\r\n"
+		"Connection: keep-alive\r\n"
+		"User-Agent: https_simple\r\n\r\n";
+
+	encode64(id, request+13);
+	SSL_write(io.ssl, request, sizeof(request)-1);
+}
+
+inline void prepare_and_bind_stmt()
+{
+	static const char sql_video_insert[] =
+		"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+	if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
+		PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+}
+
 void crawler(yyscan_t scanner)
 {
 	static _Thread_local int64_t pipe_count = 0;
+
+	prepare_and_bind_stmt();
+
 	do {
 		int64_t id = dequeue();
 		if (!id) {
@@ -48,26 +72,8 @@ void crawler(yyscan_t scanner)
 				return; // queue is empty and no response is headed our way
 			break;
 		}
-
-		{// prepare and bind statement
-			static const char sql_video_insert[] =
-				"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-
-			if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
-				PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
-		}
-
-		{// send http request
-			static _Thread_local char request[] =
-				"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
-				"Host: www.youtube.com:443\r\n"
-				"Connection: keep-alive\r\n"
-				"User-Agent: https_simple\r\n\r\n";
-
-			encode64(id, request+13);
-			SSL_write(io.ssl, request, sizeof(request)-1);
-		}
-	} while (++pipe_count < PIPE_MAX);
+		send_request(id);
+	} while (pipe_count++ < PIPE_MAX);
 
 	/***********************/
 	/**/ yylex(scanner); /**/
