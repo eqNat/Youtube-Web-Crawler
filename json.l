@@ -23,8 +23,6 @@ struct flex_io {
 	sqlite3_stmt *video_stmt;
 };
 
-_Thread_local _Bool first_scan = 1;
-
 %}
 
 %option noyywrap reentrant
@@ -41,12 +39,8 @@ _Thread_local _Bool first_scan = 1;
 %s COMPACT_VIDEO_RENDERER
 
 %%
-
- if (first_scan)
-	BEGIN(HTTP_HEADER);
- else
-	BEGIN(INITIAL);
-
+ 
+ int64_t id;
  int rec_count = 0;
  _Bool ratings_found = 0;
  sqlite3_stmt *channel_stmt;
@@ -54,16 +48,17 @@ _Thread_local _Bool first_scan = 1;
 
 <HTTP_HEADER>{
 	"HTTP/1.1 4"[0-9]{2}* {
+		// display 4xx errors
 		PANIC("%.*s", yyleng, yytext);
 	}
 
 	"\r\n\r\n" {
-		first_scan = 0;
 		BEGIN(INITIAL);
 	}
 }
 
 "window[\"ytInitialData\"] = " {
+	//start of JSON object 
 	BEGIN(YTINITIALDATA);
 }
 
@@ -71,21 +66,25 @@ _Thread_local _Bool first_scan = 1;
 	"\"videoPrimaryInfoRenderer\"" {
 		BEGIN(PRIMARY_INFO);
 	}
-
 	"window[\"ytInitialPlayerResponse\"]" {
+		// ytInitialData is empty causing us to enter a new JSON object
+		// We will search ytInitialPlayerResponse for a reason why ytInitialData is empty
 		BEGIN(YTINITIALPLAYERRESPONSE);
 	}
 }
 
 <YTINITIALPLAYERRESPONSE>{
 	"\"reason\":{\"simpleText\":\"Private video\"}" {
+		// user changed video from public to private
 		for (int i = 2; i < 26; i++)
 			sqlite3_bind_null(yyextra->video_stmt, i);
 
 		int status;
 		if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
 			PANIC("sqlite3_step returned %d", status);
-		return 1;
+
+		rec_count = 18;
+		BEGIN(INITIAL);
 	}
 }
 
@@ -95,6 +94,10 @@ _Thread_local _Bool first_scan = 1;
 	}
 	"\"viewCount\":{\"simpleText\":\""[0-9,]+ {
 		sqlite3_bind_int64(yyextra->video_stmt, 3, stringToInt64(yytext+27));
+	}
+	"\"videoId\":\""[0-9a-zA-Z_-]{11} {
+		id = decode64(yytext+11);
+		sqlite3_bind_int64(yyextra->video_stmt, 1, id);
 	}
 	"\"tooltip\":\""[0-9,]+" / "[0-9,]+ {
 		ratings_found = 1;
@@ -114,10 +117,12 @@ _Thread_local _Bool first_scan = 1;
 
 <SECONDARY_RENDERER>{
 	"\"title\":{\"runs\":[{\"text\":"\"(\\.|[^"\\])*/\" {
+		// get title
 		memcpy(channel_name, yytext+26, yyleng-25);
 		channel_name[yyleng-25] = '\0';
 	}
 	"\"url\":\"/channel/UC"[0-9a-zA-Z_-]{22} {
+		// get channel ID
 		int64_t l_id = decode64(yytext+18);
 		int64_t r_id = decode64(yytext+29);
 		sqlite3_bind_int64(yyextra->video_stmt, 6, l_id);
@@ -159,7 +164,8 @@ _Thread_local _Bool first_scan = 1;
 		int status;
 		if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
 			PANIC("sqlite3_step returned %d", status);
-		return 1;
+		rec_count = 18;
+		BEGIN(INITIAL);
 	}
 
 	"\"collapsedItemCount\"" {
@@ -178,7 +184,7 @@ _Thread_local _Bool first_scan = 1;
 		int64_t rec = decode64(yytext+11);
 		sqlite3_bind_int64(yyextra->video_stmt, rec_count+8, rec);
 		if (video_insert(rec))
-			enqueue(&global_Q, rec);
+			enqueue(rec);
 
 		BEGIN(SECONDARY_RESULTS);
 		if (++rec_count == 18) {
@@ -187,14 +193,16 @@ _Thread_local _Bool first_scan = 1;
 				PANIC("sqlite3_step returned %d", status);
 			sqlite3_finalize(yyextra->video_stmt);
 
-			return 1;
+			BEGIN(INITIAL);
 		}
 	}
 }
 
 "</html>" {
-	first_scan = 1;
-	return 0;
+	if (rec_count != 18)
+		enqueue(id);
+	BEGIN(HTTP_HEADER);
+	return 1;
 }
 
 [ \t\n]+          /* ignore whitespace */

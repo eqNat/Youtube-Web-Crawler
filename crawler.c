@@ -18,6 +18,8 @@
 #include "panic.h"
 #include "dbcache/queue.h"
 
+#define PIPE_MAX 3 // max piped http requests per thread
+
 struct sockaddr_in yt_address;
 
 __attribute__ ((constructor))
@@ -38,36 +40,41 @@ struct flex_io { // yyextra
 
 void crawler(yyscan_t scanner)
 {
-	int64_t id = dequeue(&global_Q);
-	if (!id)
-		return; // queue is empty
+	static _Thread_local int64_t pipe_count = 0;
+	printf("pipe count = %d\n", pipe_count);
+	do {
+		int64_t id = dequeue();
+		if (!id) {
+			if (pipe_count == 0)
+				return; // queue is empty and no response is headed our way
+			break;
+		}
 
-	{// prepare and bind statement
-		static const char sql_video_insert[] =
-			"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+		{// prepare and bind statement
+			static const char sql_video_insert[] =
+				"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
-		if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
-			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+			if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
+				PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+		}
 
-		sqlite3_bind_int64(io.video_stmt, 1, id);
-	}
+		{// send http request
+			static _Thread_local char request[] =
+				"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
+				"Host: www.youtube.com:443\r\n"
+				"Connection: keep-alive\r\n"
+				"User-Agent: https_simple\r\n\r\n";
 
-	{// send http request
-		static _Thread_local char request[] =
-			"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
-			"Host: www.youtube.com:443\r\n"
-			"Connection: keep-alive\r\n"
-			"User-Agent: https_simple\r\n\r\n";
+			encode64(id, request+13);
+			SSL_write(io.ssl, request, sizeof(request)-1);
+		}
+	} while (++pipe_count < PIPE_MAX);
 
-		encode64(id, request+13);
-		SSL_write(io.ssl, request, sizeof(request)-1);
-	}
+	/***********************/
+	/**/ yylex(scanner); /**/
+	/***********************/
 
-	if (yylex(scanner))
-		yylex(scanner); // scan for end of file (</html>)
-	else
-		enqueue(&global_Q, id); // end of file already found due to insufficient data
-
+	pipe_count--;
 	crawler(scanner); // tail-recursive call
 }
 
