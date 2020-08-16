@@ -7,10 +7,10 @@ main.o: main.c panic.h crawler.h conversions.h dbcache/queue.h dbcache/hash_tabl
 crawler.o: crawler.c crawler.h json.h panic.h conversions.h dbcache/queue.h dbcache/hash_table.h
 	gcc -c crawler.c -O3
 
-lex.yy.o: lex.yy.c json.h conversions.h panic.h dbcache/queue.h dbcache/hash_table.h
+lex.yy.o: lex.yy.c
 	gcc -c lex.yy.c -lfl -O3
 
-lex.yy.c: json.l
+lex.yy.c: json.l json.h conversions.h panic.h dbcache/queue.h dbcache/hash_table.h
 	flex json.l
 
 conversions.o: conversions.c conversions.h panic.h

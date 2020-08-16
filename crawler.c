@@ -38,7 +38,7 @@ struct flex_io { // yyextra
 
 void crawler(yyscan_t scanner)
 {
-	int64_t id = dequeue();
+	int64_t id = dequeue(&global_Q);
 	if (!id)
 		return; // queue is empty
 
@@ -49,7 +49,7 @@ void crawler(yyscan_t scanner)
 		if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
 			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
 
-		sqlite3_bind_int64(io.video_stmt, 1,id);
+		sqlite3_bind_int64(io.video_stmt, 1, id);
 	}
 
 	{// send http request
@@ -66,7 +66,7 @@ void crawler(yyscan_t scanner)
 	if (yylex(scanner))
 		yylex(scanner); // scan for end of file (</html>)
 	else
-		enqueue(id); // end of file already found due to insufficient data
+		enqueue(&global_Q, id); // end of file already found due to insufficient data
 
 	crawler(scanner); // tail-recursive call
 }

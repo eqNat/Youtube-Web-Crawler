@@ -61,7 +61,7 @@ int main()
 			"rec_17 INTEGER(64)," //
 			"rec_18 INTEGER(64)," //
 			"FOREIGN KEY(lchannel_id, rchannel_id)"  // NULL if video is private
-				"REFERENCES channels(l_id, r_id));"; //
+			    "REFERENCES channels(l_id, r_id));"; //
 
 		if (sqlite3_exec(db, create_video_table, NULL, 0, &zErrMsg) != SQLITE_OK )
 			PANIC("SQL error: %s", zErrMsg);
@@ -77,7 +77,7 @@ int main()
 		if (sqlite3_exec(db, create_channel_table, NULL, 0, &zErrMsg) != SQLITE_OK )
 			PANIC("SQL error: %s", zErrMsg);
 
-		const char sql_id_select[] = "SELECT id from videos";
+		const char sql_id_select[] = "SELECT id FROM videos";
 
 		sqlite3_stmt *res;
 
@@ -93,7 +93,7 @@ int main()
 
 		sqlite3_finalize(res);
 
-		const char sql_cid_select[] = "SELECT l_id, r_id from channels";
+		const char sql_cid_select[] = "SELECT l_id, r_id FROM channels";
 
 		if (sqlite3_prepare_v2(db, sql_cid_select, -1, &res, 0) != SQLITE_OK)
 			PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
@@ -122,14 +122,14 @@ int main()
 			for (int32_t i = 0; i < 18; i++) {
 				int64_t recommendation = sqlite3_column_int64(res, i);
 				if (video_insert(recommendation))
-					enqueue(recommendation);
+					enqueue(&global_Q, recommendation);
 			}
 		sqlite3_close(db);
 	}
 
 	int64_t start_id = decode64("3nrLc_JOF7k");
 	if (video_insert(start_id))
-		enqueue(start_id);
+		enqueue(&global_Q, start_id);
 
 	printf("starting the threads\n");
 	{// multithreading setup and execution
@@ -146,9 +146,9 @@ int main()
 				pthread_attr_t attr;
 				pthread_attr_init(&attr);
 				pthread_create(&tids[i], &attr, crawler_wrapper, NULL);
+				printf("thread %d in\n", i);
 				while (Q_Count < 5)
 					sleep(1);
-				printf("thread %d in\n", i);
 			}
 		}
 
