@@ -48,6 +48,8 @@ created using the following statements:
 	subscribers INTEGER(64), -- NULL if subscriber count is hidden
 	PRIMARY KEY (l_id, r_id));
 
-The program initially runs with 12 threads and can be changed by redefining the
-THREAD_NUM macro found in main.c. It's recommended to increase your threads
-until either your CPU or bandwidth is at maximum capacity.
+You can run the program using
+	
+	./crawler [thread_num]
+
+Without specifying an argument, the number of threads defaults to four.

@@ -10,8 +10,6 @@
 #include "dbcache/queue.h"
 #include "dbcache/hash_table.h"
 
-#define THREAD_NUM 1
-
 __attribute__ ((noreturn))
 void *logger(void *no_args)
 {
@@ -24,7 +22,7 @@ void *logger(void *no_args)
 	logger(NULL);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
 	{// create database if not exists, else load database into cache (queue and hashmap)
 		sqlite3 *db;
@@ -127,13 +125,23 @@ int main()
 		sqlite3_close(db);
 	}
 
-	int64_t start_id = decode64("hsWr_JWTZss");
-	if (video_insert(start_id))
-		enqueue(start_id);
+	{// insert seed ID if cache is empty
+		int64_t start_id = decode64("hsWr_JWTZss");
+		if (video_insert(start_id))
+			enqueue(start_id);
+	}
+
+	uint8_t thread_num;
+	{// get args input if exists
+		if (argc == 1)
+			thread_num = 4;
+		else
+			thread_num = (uint8_t) stringToInt64(argv[1]);
+	}
 
 	printf("starting the threads\n");
 	{// multithreading setup and execution
-		pthread_t tids[THREAD_NUM+1];
+		pthread_t tids[thread_num+1];
 
 		{// set up logger
 			pthread_attr_t attr;
@@ -142,7 +150,7 @@ int main()
 		}
 
 		{// set up crawlers
-			for (int32_t i = 1; i < THREAD_NUM+1; i++) {
+			for (int32_t i = 1; i < thread_num+1; i++) {
 				pthread_attr_t attr;
 				pthread_attr_init(&attr);       /***********************/
 				pthread_create(&tids[i], &attr, /**/ crawler_wrapper /**/, NULL);
@@ -153,7 +161,7 @@ int main()
 		}
 
 		// We don't care about joining with logger
-		for (int32_t i = 1; i < THREAD_NUM+1; i++)
+		for (int32_t i = 1; i < thread_num+1; i++)
 			pthread_join(tids[i], NULL);
 	}
 }

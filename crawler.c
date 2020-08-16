@@ -41,7 +41,6 @@ struct flex_io { // yyextra
 void crawler(yyscan_t scanner)
 {
 	static _Thread_local int64_t pipe_count = 0;
-	printf("pipe count = %d\n", pipe_count);
 	do {
 		int64_t id = dequeue();
 		if (!id) {
