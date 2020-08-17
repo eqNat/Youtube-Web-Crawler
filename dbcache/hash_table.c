@@ -56,7 +56,7 @@ _Bool video_insert(int64_t data)
 			}
 			// double array
 			int64_t extra_bytes = sizeof(int64_t)*column;
-			v_hashmap[row] = (int64_t *) reallocarray(v_hashmap[row], extra_bytes, 2);
+			v_hashmap[row] = (int64_t *) realloc(v_hashmap[row], extra_bytes * 2);
 			memset(&v_hashmap[row][column], 0, extra_bytes);
 			v_column_power[row]++;
 			pthread_mutex_unlock(&realloc_lock);
@@ -94,7 +94,7 @@ _Bool channel_insert(int64_t lhalf, int64_t rhalf)
 			}
 			// double array
 			int64_t extra_bytes = sizeof(struct id_128)*column;
-			c_hashmap[row] = (struct id_128 *) reallocarray(c_hashmap[row], extra_bytes, 2);
+			c_hashmap[row] = (struct id_128 *) realloc(c_hashmap[row], extra_bytes * 2);
 			memset(&c_hashmap[row][column], 0, extra_bytes);
 			c_column_power[row]++;
 			pthread_mutex_unlock(&realloc_lock);
