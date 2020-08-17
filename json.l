@@ -188,13 +188,22 @@ struct flex_io {
 }
 
 <COMPACT_VIDEO_RENDERER>{
-	"\"videoId\":\""[0-9a-zA-Z_-]{11} {
-		int64_t rec = decode64(yytext+11);
+	"\"label\":\"LIVE NOW\"," {
+		// skip livestreams
+		BEGIN(SECONDARY_RESULTS);
+	}
+
+	"\"text\":\"YouTube Movies\"," {
+		// skip YouTube Movies
+		BEGIN(SECONDARY_RESULTS);
+	}
+
+	"\"addedVideoId\":\""[0-9a-zA-Z_-]{11} {
+		int64_t rec = decode64(yytext+16);
 		sqlite3_bind_int64(yyextra->video_stmt, rec_count+8, rec);
 		if (video_insert(rec))
 			enqueue(rec);
 
-		BEGIN(SECONDARY_RESULTS);
 		if (++rec_count == 18) {
 			int status;
 			if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
@@ -202,6 +211,8 @@ struct flex_io {
 			sqlite3_finalize(yyextra->video_stmt);
 
 			BEGIN(INITIAL);
+		} else {
+			BEGIN(SECONDARY_RESULTS);
 		}
 	}
 }
