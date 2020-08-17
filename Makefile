@@ -19,7 +19,7 @@ conversions.o: conversions.c conversions.h panic.h
 panic.o: panic.c panic.h
 	gcc -c panic.c -O3
 
-dbcache/libcache.a:
+dbcache/libcache.a: dbcache/queue.c dbcache/queue.h dbcache/hash_table.c dbcache/hash_table.h
 	$(MAKE) -C dbcache
 
 clean:

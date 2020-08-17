@@ -46,6 +46,14 @@ struct flex_io {
  sqlite3_stmt *channel_stmt;
  char channel_name[256];
 
+ {//Prepare and bind sql statement
+	static const char sql_video_insert[] =
+		"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+	if (sqlite3_prepare_v2(yyextra->db, sql_video_insert, -1, &(yyextra->video_stmt), NULL) != SQLITE_OK)
+		PANIC("Failed to prepare statement: %s", sqlite3_errmsg(yyextra->db));
+ }
+
 <HTTP_HEADER>{
 	"HTTP/1.1 4"[0-9]{2}* {
 		// display 4xx errors

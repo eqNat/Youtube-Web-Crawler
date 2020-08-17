@@ -10,6 +10,8 @@
 #include "dbcache/queue.h"
 #include "dbcache/hash_table.h"
 
+// tail-recursive function.
+// Be careful when turning down optimizations for debugging.
 __attribute__ ((noreturn))
 void *logger(void *no_args)
 {

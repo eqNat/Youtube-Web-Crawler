@@ -20,50 +20,13 @@
 
 #define PIPE_MAX 3 // max piped http requests per thread
 
-struct sockaddr_in yt_address;
+inline void send_request(int64_t id);
 
-__attribute__ ((constructor))
-void yt_address_init()
-{
-	yt_address.sin_family = AF_INET;
-	yt_address.sin_port = htons(443);
-
-	if (inet_pton(AF_INET, "172.217.1.238", &yt_address.sin_addr) != 1)
-		PANIC("inet_pton failed");
-}
-
-struct flex_io { // yyextra
-	SSL *ssl;
-	sqlite3 *db;
-	sqlite3_stmt *video_stmt;
-} _Thread_local io;
-
-void send_request(int64_t id)
-{
-	static _Thread_local char request[] =
-		"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
-		"Host: www.youtube.com:443\r\n"
-		"Connection: keep-alive\r\n"
-		"User-Agent: https_simple\r\n\r\n";
-
-	encode64(id, request+13);
-	SSL_write(io.ssl, request, sizeof(request)-1);
-}
-
-inline void prepare_and_bind_stmt()
-{
-	static const char sql_video_insert[] =
-		"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-
-	if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
-		PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
-}
-
+// tail-recursive function.
+// Be careful when turning down optimizations for debugging.
 void crawler(yyscan_t scanner)
 {
 	static _Thread_local int64_t pipe_count = 0;
-
-	prepare_and_bind_stmt();
 
 	do {
 		int64_t id = dequeue();
@@ -80,8 +43,17 @@ void crawler(yyscan_t scanner)
 	/***********************/
 
 	pipe_count--;
-	crawler(scanner); // tail-recursive call
+	crawler(scanner);
 }
+
+// initialized by constructor function 'yt_address_init'
+struct sockaddr_in yt_address;
+
+struct flex_io { // yyextra
+	SSL *ssl;
+	sqlite3 *db;
+	sqlite3_stmt *video_stmt;
+} _Thread_local io;
 
 void* crawler_wrapper(void* no_args)
 {
@@ -136,3 +108,26 @@ void* crawler_wrapper(void* no_args)
 
 	return NULL;
 }
+
+void send_request(int64_t id)
+{
+	static _Thread_local char request[] =
+		"GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
+		"Host: www.youtube.com:443\r\n"
+		"Connection: keep-alive\r\n"
+		"User-Agent: https_simple\r\n\r\n";
+
+	encode64(id, request+13);
+	SSL_write(io.ssl, request, sizeof(request)-1);
+}
+
+__attribute__ ((constructor))
+void yt_address_init()
+{
+	yt_address.sin_family = AF_INET;
+	yt_address.sin_port = htons(443);
+
+	if (inet_pton(AF_INET, "172.217.1.238", &yt_address.sin_addr) != 1)
+		PANIC("inet_pton failed");
+}
+
