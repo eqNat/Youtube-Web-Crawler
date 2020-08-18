@@ -70,7 +70,7 @@ void* crawler_wrapper(void* no_args)
         if (status != SQLITE_OK)
             PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
         
-        sqlite3_busy_timeout(io.db, 100);
+        sqlite3_busy_timeout(io.db, 300);
     }
 
     {// Prepare and bind sql statement
