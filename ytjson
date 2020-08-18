@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# example: ./ytjson hsWr_JWTZss > yt.json
+
+prefix="https://www.youtube.com/watch?v="
+
+# The following steps are performed:
+# 1. download webpage
+# 2. find line containing specific JSON object
+# 3. remove excess data in front of JSON object
+# 4. remove semicolon at the end of JSON object
+# 5. format JSON object onto multiple lines
+# 6. replace four spaces with tab to shrink size of output
+
+curl $prefix$1 \
+    | grep ^'    window\["ytInitialData"\] = ' \
+    | sed 's/^    window\["ytInitialData"\] = //g' \
+    | sed 's/;$//g' \
+    | python3 -m json.tool \
+    | sed 's/    /\t/g'
