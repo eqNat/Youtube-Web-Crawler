@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 			"CREATE TABLE IF NOT EXISTS videos ("
 			"id INTEGER(64) PRIMARY KEY,"
 			"title VARCHAR(100)," // NULL if video is private
-			"views INTEGER(64)," // NULL if livestream OR title = 'Youtube Movies' OR private
+			"views INTEGER(64)," // NULL if private
 			"likes INTEGER(64),"    // NULL if ratings are disabled OR private
 			"dislikes INTEGER(64)," // 
 			"lchannel_id INTEGER(64)," // NULL if video is private

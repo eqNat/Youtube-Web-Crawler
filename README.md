@@ -12,15 +12,13 @@ To run, type
 
 Without specifying an argument, the number of threads defaults to four.
 
-This crawler will create a sqlite3 database file named 'youtube.db'. The
-database consists of two tables: 'videos' and 'channels'. The tables are
-created using the following statements:
+This crawler will create a sqlite3 database file named 'youtube.db' if one doesn't aleady exist. The database consists of two tables: 'videos' and 'channels'. The tables are created using the following statements:
 
 
 	CREATE TABLE IF NOT EXISTS videos (
 	id INTEGER(64) PRIMARY KEY,
 	title VARCHAR(100), -- NULL if video is private
-	views INTEGER(64), -- NULL if livestream OR title='Youtube Movies' OR private
+	views INTEGER(64), -- NULL if title='Youtube Movies' OR private
 	likes INTEGER(64),    -- NULL if ratings are disabled OR private
 	dislikes INTEGER(64), -- 
 	lchannel_id INTEGER(64), -- NULL if video is private

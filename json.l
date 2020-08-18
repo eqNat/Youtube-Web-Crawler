@@ -21,6 +21,7 @@ struct flex_io {
 	SSL *ssl;
 	sqlite3 *db;
 	sqlite3_stmt *video_stmt;
+	sqlite3_stmt *channel_stmt;
 };
 
 %}
@@ -43,16 +44,8 @@ struct flex_io {
  int64_t id;
  int rec_count = 0;
  _Bool ratings_found = 0;
- sqlite3_stmt *channel_stmt;
  char channel_name[256];
-
- {//Prepare and bind sql statement
-	static const char sql_video_insert[] =
-		"INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
-
-	if (sqlite3_prepare_v2(yyextra->db, sql_video_insert, -1, &(yyextra->video_stmt), NULL) != SQLITE_OK)
-		PANIC("Failed to prepare statement: %s", sqlite3_errmsg(yyextra->db));
- }
+ BEGIN(HTTP_HEADER);
 
 <HTTP_HEADER>{
 	"HTTP/1.1 4"[0-9]{2}* {
@@ -136,14 +129,9 @@ struct flex_io {
 		sqlite3_bind_int64(yyextra->video_stmt, 6, l_id);
 		sqlite3_bind_int64(yyextra->video_stmt, 7, r_id);
 		if (channel_insert(l_id, r_id)) {
-			static const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
-			if (sqlite3_prepare_v2(yyextra->db, sql_channel_insert, -1, &channel_stmt, NULL) != SQLITE_OK) {
-				sqlite3_close(yyextra->db);
-				PANIC("Failed to prepare statement: %s", sqlite3_errmsg(yyextra->db));
-			}
-			sqlite3_bind_int64(channel_stmt, 1, l_id);
-			sqlite3_bind_int64(channel_stmt, 2, r_id);
-			sqlite3_bind_text(channel_stmt, 3, channel_name, strlen(channel_name), SQLITE_STATIC);
+			sqlite3_bind_int64(yyextra->channel_stmt, 1, l_id);
+			sqlite3_bind_int64(yyextra->channel_stmt, 2, r_id);
+			sqlite3_bind_text(yyextra->channel_stmt, 3, channel_name, strlen(channel_name), SQLITE_STATIC);
 			BEGIN(SUB_COUNT);
 		}
 	}
@@ -155,13 +143,18 @@ struct flex_io {
 	}
 }
 
-<SUB_COUNT>"\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
-	sqlite3_bind_int64(channel_stmt, 4, approximateSubs(yytext+40));
-	int status;
-	if ((status = sqlite3_step(channel_stmt)) != SQLITE_DONE)
-		PANIC("sqlite3_step returned %d", status);
-	sqlite3_finalize(channel_stmt);
-	BEGIN(SECONDARY_RENDERER);
+<SUB_COUNT>{
+    "\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
+        sqlite3_bind_int64(yyextra->channel_stmt, 4, approximateSubs(yytext+40));
+        int status;
+        if ((status = sqlite3_step(yyextra->channel_stmt)) != SQLITE_DONE)
+            PANIC("sqlite3_step returned %d", status);
+        BEGIN(SECONDARY_RENDERER);
+    }
+	"\"metadataRowContainer\"" {
+		sqlite3_bind_null(yyextra->channel_stmt, 4);
+		BEGIN(METADATA);
+	}
 }
 
 <METADATA>{
@@ -208,7 +201,6 @@ struct flex_io {
 			int status;
 			if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
 				PANIC("sqlite3_step returned %d", status);
-			sqlite3_finalize(yyextra->video_stmt);
 
 			BEGIN(INITIAL);
 		} else {
@@ -220,7 +212,9 @@ struct flex_io {
 "</html>" {
 	if (rec_count != 18)
 		enqueue(id);
-	BEGIN(HTTP_HEADER);
+    sqlite3_reset(yyextra->channel_stmt);
+    sqlite3_reset(yyextra->video_stmt);
+    BEGIN(HTTP_HEADER);
 	return 1;
 }
 

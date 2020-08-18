@@ -36,7 +36,7 @@ void crawler(yyscan_t scanner)
 			break;
 		}
 		send_request(id);
-	} while (pipe_count++ < PIPE_MAX);
+	} while (++pipe_count < PIPE_MAX);
 
 	/***********************/
 	/**/ yylex(scanner); /**/
@@ -53,6 +53,7 @@ struct flex_io { // yyextra
 	SSL *ssl;
 	sqlite3 *db;
 	sqlite3_stmt *video_stmt;
+    sqlite3_stmt *channel_stmt;
 } _Thread_local io;
 
 void* crawler_wrapper(void* no_args)
@@ -71,6 +72,21 @@ void* crawler_wrapper(void* no_args)
 		
 		sqlite3_busy_timeout(io.db, 100);
 	}
+
+    {// Prepare and bind sql statement
+        // video insertion statement
+        const char sql_video_insert[] =
+            "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+        if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
+            PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+
+        // channel insertion statement
+        const char sql_channel_insert[] = "INSERT INTO channels VALUES(?,?,?,?);";
+        if (sqlite3_prepare_v2(io.db, sql_channel_insert, -1, &(io.channel_stmt), NULL) != SQLITE_OK) {
+            sqlite3_close(io.db);
+            PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
+        }
+    }
 
 	int client;
 	{// securely connect to Youtube
@@ -104,6 +120,8 @@ void* crawler_wrapper(void* no_args)
 	SSL_free(io.ssl);
 	SSL_CTX_free(ctx);
 	sqlite3_close(io.db);
+	sqlite3_finalize(io.channel_stmt);
+	sqlite3_finalize(io.video_stmt);
 	yylex_destroy(scanner);
 
 	return NULL;
@@ -116,6 +134,7 @@ void send_request(int64_t id)
 		"Host: www.youtube.com:443\r\n"
 		"Connection: keep-alive\r\n"
 		"User-Agent: https_simple\r\n\r\n";
+
 
 	encode64(id, request+13);
 	SSL_write(io.ssl, request, sizeof(request)-1);

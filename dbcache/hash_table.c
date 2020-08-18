@@ -15,7 +15,7 @@ struct id_128 {
 };
 
 #define V_POWER 22
-#define C_POWER 21
+#define C_POWER 20
 int64_t *v_hashmap[1 << V_POWER];
 struct id_128 *c_hashmap[1 << C_POWER];
 
@@ -38,6 +38,8 @@ uint64_t c_table_count = 0;
 
 _Bool video_insert(int64_t data)
 {
+    if (!data)
+        return 0;
 	int64_t row = data & ((1 << V_POWER) - 1);
 	int64_t column = 0;
 
