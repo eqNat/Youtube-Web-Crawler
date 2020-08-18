@@ -58,8 +58,6 @@ int main(int argc, char *argv[])
             "rec_14 INTEGER(64)," //
             "rec_15 INTEGER(64)," //
             "rec_16 INTEGER(64)," //
-            "rec_17 INTEGER(64)," //
-            "rec_18 INTEGER(64)," //
             "FOREIGN KEY(lchannel_id, rchannel_id)"  // NULL if video is private
                 "REFERENCES channels(l_id, r_id));"; //
 
@@ -112,7 +110,7 @@ int main(int argc, char *argv[])
         const char sql_rec_select[] =
             "SELECT "
             "rec_1, rec_2, rec_3, rec_4, rec_5, rec_6, rec_7, rec_8, rec_9, "
-            "rec_10, rec_11, rec_12, rec_13, rec_14, rec_15, rec_16, rec_17, rec_18 "
+            "rec_10, rec_11, rec_12, rec_13, rec_14, rec_15, rec_16 "
             "FROM videos;";
 
         if (sqlite3_prepare_v2(db, sql_rec_select, -1, &res, 0) != SQLITE_OK)

@@ -77,14 +77,14 @@ struct flex_io {
 <YTINITIALPLAYERRESPONSE>{
     "\"reason\":{\"simpleText\":\"Private video\"}" {
         // user changed video from public to private
-        for (int i = 2; i < 26; i++)
+        for (int i = 2; i < 24; i++)
             sqlite3_bind_null(yyextra->video_stmt, i);
 
         int status;
         if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
             PANIC("sqlite3_step returned %d", status);
 
-        rec_count = 18;
+        rec_count = 16;
         BEGIN(INITIAL);
     }
 }
@@ -159,7 +159,7 @@ struct flex_io {
 
 <METADATA>{
     "\"text\":\"Age-restricted video" {
-        for (int i = 8; i < 26; i++)
+        for (int i = 8; i < 24; i++)
             sqlite3_bind_null(yyextra->video_stmt, i);
 
         int status;
@@ -197,7 +197,7 @@ struct flex_io {
         if (video_insert(rec))
             enqueue(rec);
 
-        if (++rec_count == 18) {
+        if (++rec_count == 16) {
             int status;
             if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
                 PANIC("sqlite3_step returned %d", status);
@@ -210,7 +210,7 @@ struct flex_io {
 }
 
 "</html>" {
-    if (rec_count != 18)
+    if (rec_count != 16)
         enqueue(id);
     sqlite3_reset(yyextra->channel_stmt);
     sqlite3_reset(yyextra->video_stmt);

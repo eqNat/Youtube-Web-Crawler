@@ -39,8 +39,6 @@ This crawler will create a sqlite3 database file named 'youtube.db' if one doesn
 	rec_14 INTEGER(64), --
 	rec_15 INTEGER(64), --
 	rec_16 INTEGER(64), --
-	rec_17 INTEGER(64), --
-	rec_18 INTEGER(64), --
 	FOREIGN KEY(lchannel_id, rchannel_id)  -- NULL if video is private
 		REFERENCES channels(l_id, r_id)); --
 

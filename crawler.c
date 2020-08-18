@@ -76,7 +76,7 @@ void* crawler_wrapper(void* no_args)
     {// Prepare and bind sql statement
         // video insertion statement
         const char sql_video_insert[] =
-            "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+            "INSERT INTO videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
         if (sqlite3_prepare_v2(io.db, sql_video_insert, -1, &(io.video_stmt), NULL) != SQLITE_OK)
             PANIC("Failed to prepare statement: %s", sqlite3_errmsg(io.db));
 
