@@ -1,6 +1,7 @@
 %{
 #include <string.h>
 #include <stdint.h>
+
 #include <sqlite3.h>
 
 #include <openssl/ssl.h>
@@ -24,6 +25,8 @@ struct flex_io {
     sqlite3_stmt *channel_stmt;
 };
 
+pthread_mutex_t lock;
+
 %}
 
 %option noyywrap reentrant
@@ -44,6 +47,7 @@ struct flex_io {
  int64_t id;
  int rec_count = 0;
  _Bool ratings_found = 0;
+ _Bool should_insert_channel = 0;
  char channel_name[256];
  BEGIN(HTTP_HEADER);
 
@@ -79,10 +83,6 @@ struct flex_io {
         // user changed video from public to private
         for (int i = 2; i < 24; i++)
             sqlite3_bind_null(yyextra->video_stmt, i);
-
-        int status;
-        if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
-            PANIC("sqlite3_step returned %d", status);
 
         rec_count = 16;
         BEGIN(INITIAL);
@@ -129,6 +129,7 @@ struct flex_io {
         sqlite3_bind_int64(yyextra->video_stmt, 6, l_id);
         sqlite3_bind_int64(yyextra->video_stmt, 7, r_id);
         if (channel_insert(l_id, r_id)) {
+            should_insert_channel = 1;
             sqlite3_bind_int64(yyextra->channel_stmt, 1, l_id);
             sqlite3_bind_int64(yyextra->channel_stmt, 2, r_id);
             sqlite3_bind_text(yyextra->channel_stmt, 3, channel_name, strlen(channel_name), SQLITE_STATIC);
@@ -146,12 +147,10 @@ struct flex_io {
 <SUB_COUNT>{
     "\"subscriberCountText\":{\"runs\":[{\"text\":\""[^ ]+ {
         sqlite3_bind_int64(yyextra->channel_stmt, 4, approximateSubs(yytext+40));
-        int status;
-        if ((status = sqlite3_step(yyextra->channel_stmt)) != SQLITE_DONE)
-            PANIC("sqlite3_step returned %d", status);
         BEGIN(SECONDARY_RENDERER);
     }
     "\"metadataRowContainer\"" {
+        // subscriber count is hidden
         sqlite3_bind_null(yyextra->channel_stmt, 4);
         BEGIN(METADATA);
     }
@@ -162,10 +161,7 @@ struct flex_io {
         for (int i = 8; i < 24; i++)
             sqlite3_bind_null(yyextra->video_stmt, i);
 
-        int status;
-        if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
-            PANIC("sqlite3_step returned %d", status);
-        rec_count = 18;
+        rec_count = 16;
         BEGIN(INITIAL);
     }
 
@@ -197,24 +193,40 @@ struct flex_io {
         if (video_insert(rec))
             enqueue(rec);
 
-        if (++rec_count == 16) {
-            int status;
-            if ((status = sqlite3_step(yyextra->video_stmt)) != SQLITE_DONE)
-                PANIC("sqlite3_step returned %d", status);
-
+        if (++rec_count == 16)
             BEGIN(INITIAL);
-        } else {
+        else
             BEGIN(SECONDARY_RESULTS);
-        }
     }
 }
 
 "</html>" {
-    if (rec_count != 16)
+    BEGIN(HTTP_HEADER);
+
+    if (rec_count != 16) {
         enqueue(id);
+        return 0;
+    }
+
+    pthread_mutex_lock(&lock);
+    sqlite3_exec(yyextra->db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
+
+    int status = sqlite3_step(yyextra->video_stmt);
+    if (status != SQLITE_DONE)
+        PANIC("sqlite3_step returned %d", status);
+
+    if (should_insert_channel) {
+        status = sqlite3_step(yyextra->channel_stmt);
+        if (status != SQLITE_DONE)
+            PANIC("sqlite3_step returned %d", status);
+    }
+
     sqlite3_reset(yyextra->channel_stmt);
     sqlite3_reset(yyextra->video_stmt);
-    BEGIN(HTTP_HEADER);
+
+    sqlite3_exec(yyextra->db, "COMMIT;", NULL, NULL, NULL);
+    pthread_mutex_unlock(&lock);
+
     return 1;
 }
 

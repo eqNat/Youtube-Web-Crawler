@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
             PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
 
         int32_t status;
+        // load video IDs into cache
         while ((status = sqlite3_step(res)) == SQLITE_ROW)
             video_insert(sqlite3_column_int64(res, 0));
 
@@ -96,6 +97,7 @@ int main(int argc, char *argv[])
         if (sqlite3_prepare_v2(db, sql_cid_select, -1, &res, 0) != SQLITE_OK)
             PANIC("Failed to prepare statement: %s", sqlite3_errmsg(db));
 
+        // load channel IDs into cache
         while ((status = sqlite3_step(res)) == SQLITE_ROW) {
             int64_t l_id = sqlite3_column_int64(res, 0);
             int64_t r_id = sqlite3_column_int64(res, 1);
@@ -131,33 +133,28 @@ int main(int argc, char *argv[])
             enqueue(start_id);
     }
 
-    uint8_t thread_num;
-    {// get args input if exists
-        if (argc == 1)
-            thread_num = 4;
-        else
-            thread_num = (uint8_t) stringToInt64(argv[1]);
-    }
-
     printf("starting the threads\n");
+
     {// multithreading setup and execution
-        pthread_t tids[thread_num+1];
+        uint8_t thread_num = 4;
+        // set number of threads from argv if exists
+        if (argc > 1)
+            thread_num = (uint8_t) stringToInt64(argv[1]);
+            pthread_t tids[thread_num+1];
 
-        {// set up logger
+        // set up logger
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_create(&tids[0], &attr, logger, NULL);
+
+        // set up crawlers
+        for (int32_t i = 1; i < thread_num+1; i++) {
             pthread_attr_t attr;
-            pthread_attr_init(&attr);
-            pthread_create(&tids[0], &attr, logger, NULL);
-        }
-
-        {// set up crawlers
-            for (int32_t i = 1; i < thread_num+1; i++) {
-                pthread_attr_t attr;
-                pthread_attr_init(&attr);       /***********************/
-                pthread_create(&tids[i], &attr, /**/ crawler_wrapper /**/, NULL);
-                printf("thread %d in\n", i);    /***********************/
-                while (Q_Count < 5)
-                    sleep(1);
-            }
+            pthread_attr_init(&attr);       /***********************/
+            pthread_create(&tids[i], &attr, /**/ crawler_wrapper /**/, NULL);
+            printf("thread %d in\n", i);    /***********************/
+            while (Q_Count < 5)
+                sleep(1);
         }
 
         // We don't care about joining with logger

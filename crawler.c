@@ -69,8 +69,6 @@ void* crawler_wrapper(void* no_args)
         int status = sqlite3_exec(io.db, "PRAGMA synchronous = OFF", NULL, NULL, NULL);
         if (status != SQLITE_OK)
             PANIC("PRAGMA failed: sqlite3_exec returned %d", status);
-        
-        sqlite3_busy_timeout(io.db, 300);
     }
 
     {// Prepare and bind sql statement
@@ -130,11 +128,10 @@ void* crawler_wrapper(void* no_args)
 void send_request(int64_t id)
 {
     static _Thread_local char request[] =
-        "GET /watch?v=########### HTTP/1.1\r\n" // only the hash characters should change
+        "GET /watch?v=########### HTTP/1.1\r\n" // only hash characters should change
         "Host: www.youtube.com:443\r\n"
         "Connection: keep-alive\r\n"
         "User-Agent: https_simple\r\n\r\n";
-
 
     encode64(id, request+13);
     SSL_write(io.ssl, request, sizeof(request)-1);
