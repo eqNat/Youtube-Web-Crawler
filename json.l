@@ -1,9 +1,10 @@
 %{
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include <sqlite3.h>
-
 #include <openssl/ssl.h>
 
 #include "json.h"
@@ -204,7 +205,17 @@ pthread_mutex_t lock;
     BEGIN(HTTP_HEADER);
 
     if (rec_count != 16) {
+#ifdef LOG_BAD
+        if (rec_count == 0) {
+            pthread_mutex_lock(&lock);
+            int fd = open("bad_IDs", O_APPEND | O_CREAT | O_WRONLY, 0666);
+            write(fd, &id, sizeof(id));
+            pthread_mutex_unlock(&lock);
+        }
+#endif
         enqueue(id);
+        sqlite3_reset(yyextra->channel_stmt);
+        sqlite3_reset(yyextra->video_stmt);
         return 0;
     }
 
@@ -212,8 +223,11 @@ pthread_mutex_t lock;
     sqlite3_exec(yyextra->db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
 
     int status = sqlite3_step(yyextra->video_stmt);
-    if (status != SQLITE_DONE)
-        PANIC("sqlite3_step returned %d", status);
+    if (status != SQLITE_DONE) {
+        char id_text[11];
+        encode64(id, id_text);
+        PANIC("sqlite3_step returned %d for id %s", status, id_text);
+    }
 
     if (should_insert_channel) {
         status = sqlite3_step(yyextra->channel_stmt);

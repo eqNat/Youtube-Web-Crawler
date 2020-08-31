@@ -46,8 +46,17 @@ void crawler(yyscan_t scanner)
     crawler(scanner);
 }
 
-// initialized by constructor function 'yt_address_init'
 struct sockaddr_in yt_address;
+
+__attribute__ ((constructor))
+void yt_address_init()
+{
+    yt_address.sin_family = AF_INET;
+    yt_address.sin_port = htons(443);
+
+    if (inet_pton(AF_INET, "172.217.1.238", &yt_address.sin_addr) != 1)
+        PANIC("inet_pton failed");
+}
 
 struct flex_io { // yyextra
     SSL *ssl;
@@ -136,14 +145,3 @@ void send_request(int64_t id)
     encode64(id, request+13);
     SSL_write(io.ssl, request, sizeof(request)-1);
 }
-
-__attribute__ ((constructor))
-void yt_address_init()
-{
-    yt_address.sin_family = AF_INET;
-    yt_address.sin_port = htons(443);
-
-    if (inet_pton(AF_INET, "172.217.1.238", &yt_address.sin_addr) != 1)
-        PANIC("inet_pton failed");
-}
-
