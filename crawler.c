@@ -18,7 +18,11 @@
 #include "panic.h"
 #include "dbcache/queue.h"
 
-#define PIPE_MAX 3 // max piped http requests per thread
+// max piped http requests per thread
+// value 1 is most stable
+// value 2 gives better performance but may crash program in more cases
+// any higher than 2 will result in no performance gain and will be very unstable
+#define PIPE_MAX 1 
 
 inline void send_request(int64_t id);
 
