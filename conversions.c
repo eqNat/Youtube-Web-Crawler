@@ -68,7 +68,7 @@ char* encode64(uint64_t id, char* url)
         else if (temp == 63)
             temp = '_';
         else
-            PANIC("unknown character: %c\n", temp);
+            PANIC("unknown character: %c", temp);
         url[10-i] = temp;
         temp = (uint64_t)(id % 64);
         id >>= 6;
@@ -84,7 +84,7 @@ uint64_t decode64(const char* url)
         url = &url[32];
     
     for (int i = 0; i < 11; i++) {
-        temp = url[10 - i];
+        temp = url[10-i];
         if (isupper(temp))
             temp -= 65;
         else if (islower(temp))
@@ -96,8 +96,8 @@ uint64_t decode64(const char* url)
         else if (temp == '_')
             temp = 63;
         else
-            PANIC("unknown character: %c\n", url[10 - i]);
-        temp = (i) ? temp << i * 6 - 2: temp >> 2;
+            PANIC("unknown character: %c", url[10-i]);
+        temp = (i) ? temp << i * 6 - 2 : temp >> 2;
         id |= temp;
     }
     return id;

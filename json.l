@@ -41,11 +41,11 @@ pthread_mutex_t lock;
 %s SUB_COUNT
 %s SECONDARY_RESULTS
 %s METADATA
-%s COMPACT_VIDEO_RENDERER
 
 %%
  
  int64_t id;
+ int64_t rec_IDs[16];
  int rec_count = 0;
  _Bool ratings_found = 0;
  _Bool should_insert_channel = 0;
@@ -85,7 +85,7 @@ pthread_mutex_t lock;
         for (int i = 2; i < 24; i++)
             sqlite3_bind_null(yyextra->video_stmt, i);
 
-        rec_count = 16;
+        rec_count = -1;
         BEGIN(INITIAL);
     }
 }
@@ -162,7 +162,7 @@ pthread_mutex_t lock;
         for (int i = 8; i < 24; i++)
             sqlite3_bind_null(yyextra->video_stmt, i);
 
-        rec_count = 16;
+        rec_count = -1;
         BEGIN(INITIAL);
     }
 
@@ -172,44 +172,40 @@ pthread_mutex_t lock;
 }
 
 <SECONDARY_RESULTS>{
-    "\"compactVideoRenderer\"" {
-        BEGIN(COMPACT_VIDEO_RENDERER);
+    "\"compactVideoRenderer\":{\"videoId\":\""[0-9a-zA-Z_-]{11} {
+        if (rec_count == 16)
+            BEGIN(INITIAL);
+        else
+            rec_IDs[rec_count++] = decode64(yytext + 35);
     }
-}
 
-<COMPACT_VIDEO_RENDERER>{
     "\"label\":\"LIVE NOW\"," {
         // skip livestreams
+        rec_count--;
         BEGIN(SECONDARY_RESULTS);
     }
 
     "\"text\":\"YouTube Movies\"," {
         // skip YouTube Movies
+        rec_count--;
         BEGIN(SECONDARY_RESULTS);
     }
 
-    "\"addedVideoId\":\""[0-9a-zA-Z_-]{11} {
-        int64_t rec = decode64(yytext+16);
-        sqlite3_bind_int64(yyextra->video_stmt, rec_count+8, rec);
-        if (video_insert(rec))
-            enqueue(rec);
-
-        if (++rec_count == 16)
-            BEGIN(INITIAL);
-        else
-            BEGIN(SECONDARY_RESULTS);
-    }
 }
 
 "</html>" {
     BEGIN(HTTP_HEADER);
 
-    if (rec_count != 16) {
+    // (rec_count == -1) implies video is either private or age-restricted,
+    // so it's expected to have no recommendations
+    // (rec_count < 16 && rec_cound != -1) implies a problem
+    if (rec_count != 16 && rec_count != -1) {
 #ifdef LOG_BAD
         if (rec_count == 0) {
             pthread_mutex_lock(&lock);
             int fd = open("bad_IDs", O_APPEND | O_CREAT | O_WRONLY, 0666);
             write(fd, &id, sizeof(id));
+            close(fd);
             pthread_mutex_unlock(&lock);
         }
 #endif
@@ -217,6 +213,12 @@ pthread_mutex_t lock;
         sqlite3_reset(yyextra->channel_stmt);
         sqlite3_reset(yyextra->video_stmt);
         return 0;
+    }
+
+    for (int i = 0; i < rec_count; i++) {
+        sqlite3_bind_int64(yyextra->video_stmt, i+8, rec_IDs[i]);
+        if (video_insert(rec_IDs[i]))
+            enqueue(rec_IDs[i]);
     }
 
     pthread_mutex_lock(&lock);
