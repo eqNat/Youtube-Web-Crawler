@@ -68,6 +68,7 @@ struct flex_io { // yyextra
     sqlite3 *db;
     sqlite3_stmt *video_stmt;
     sqlite3_stmt *channel_stmt;
+    int64_t id;
 } _Thread_local io;
 
 void* crawler_wrapper(void* no_args)
@@ -147,6 +148,7 @@ void send_request(int64_t id)
         "Connection: keep-alive\r\n"
         "User-Agent: https_simple\r\n\r\n";
 
+    io.id = id;
     encode64(id, request+13);
     SSL_write(io.chunker.ssl, request, sizeof(request)-1);
 }

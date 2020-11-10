@@ -25,7 +25,16 @@ struct flex_io {
     sqlite3 *db;
     sqlite3_stmt *video_stmt;
     sqlite3_stmt *channel_stmt;
+    int64_t id;
 };
+
+_Thread_local int64_t tl_id;
+
+void log_id()
+{
+    char id_str[11];
+    fprintf(stderr ,"\nID = %.*s\n", 11, encode64(tl_id, id_str));
+}
 
 pthread_mutex_t lock;
 
@@ -44,6 +53,7 @@ pthread_mutex_t lock;
 
 %%
  
+ tl_id = yyextra->id;
  int64_t id;
  int64_t rec_IDs[16];
  int rec_count = 0;
