@@ -96,7 +96,6 @@ int chunk_read(struct Chunker *chunker, char* buf, int read_count)
             sscanf(hex_str, "%x", &chunker->bytes_left);
 
             if (chunker->bytes_left == 0) {
-                fprintf(stderr, "\nzero found\n");
                 must_read_n(chunker->ssl, hex_str, 2);
                 return i;
             }
