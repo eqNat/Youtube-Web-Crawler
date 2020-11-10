@@ -1,4 +1,4 @@
-crawler: main.o crawler.o lex.yy.o conversions.o panic.o dbcache/libcache.a
+crawler: main.o crawler.o lex.yy.o conversions.o panic.o chunker.o dbcache/libcache.a
 	gcc -o $@ $^ -lsqlite3 -lssl -lcrypto -pthread
 
 main.o: main.c panic.h crawler.h conversions.h dbcache/queue.h dbcache/hash_table.h
@@ -10,7 +10,7 @@ crawler.o: crawler.c crawler.h json.h panic.h conversions.h dbcache/queue.h dbca
 lex.yy.o: lex.yy.c
 	gcc -c lex.yy.c -lfl -O3
 
-lex.yy.c: json.l json.h conversions.h panic.h dbcache/queue.h dbcache/hash_table.h
+lex.yy.c: json.l json.h conversions.h panic.h dbcache/queue.h dbcache/hash_table.h chunker.h
 	flex json.l
 
 conversions.o: conversions.c conversions.h panic.h
@@ -18,6 +18,9 @@ conversions.o: conversions.c conversions.h panic.h
 
 panic.o: panic.c panic.h
 	gcc -c panic.c -O3
+
+chunker.o: chunker.c chunker.h
+	gcc -c chunker.c
 
 dbcache/libcache.a: dbcache/queue.c dbcache/queue.h dbcache/hash_table.c dbcache/hash_table.h
 	$(MAKE) -C dbcache

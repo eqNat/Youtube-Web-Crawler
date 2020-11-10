@@ -12,15 +12,16 @@
 #include "panic.h"
 #include "dbcache/queue.h"
 #include "dbcache/hash_table.h"
+#include "chunker.h"
 
 #undef YY_INPUT
-#define YY_INPUT(buf, result, max_size) result = SSL_read(yyextra->ssl, buf, max_size)
+#define YY_INPUT(buf, result, max_size) result = chunk_read(&yyextra->chunker, buf, max_size)
 
 /* debugging */
 //#define YY_USER_ACTION fprintf(stderr, "%s", yytext);
 
 struct flex_io {
-    SSL *ssl;
+    struct Chunker chunker;
     sqlite3 *db;
     sqlite3_stmt *video_stmt;
     sqlite3_stmt *channel_stmt;
@@ -33,7 +34,6 @@ pthread_mutex_t lock;
 %option noyywrap reentrant
 %option extra-type="struct flex_io *"
 
-%s HTTP_HEADER
 %s YTINITIALDATA
 %s YTINITIALPLAYERRESPONSE
 %s PRIMARY_INFO
@@ -50,18 +50,7 @@ pthread_mutex_t lock;
  _Bool ratings_found = 0;
  _Bool should_insert_channel = 0;
  char channel_name[256];
- BEGIN(HTTP_HEADER);
-
-<HTTP_HEADER>{
-    "HTTP/1.1 4"[0-9]{2}* {
-        // display 4xx errors
-        PANIC("%.*s", yyleng, yytext);
-    }
-
-    "\r\n\r\n" {
-        BEGIN(INITIAL);
-    }
-}
+ BEGIN(YTINITIALDATA);
 
 "window[\"ytInitialData\"] = " {
     //start of JSON object 
@@ -194,7 +183,7 @@ pthread_mutex_t lock;
 }
 
 "</html>" {
-    BEGIN(HTTP_HEADER);
+    BEGIN(INITIAL);
 
     // (rec_count == -1) implies video is either private or age-restricted,
     // so it's expected to have no recommendations

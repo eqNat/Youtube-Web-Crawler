@@ -17,6 +17,7 @@
 #include "conversions.h"
 #include "panic.h"
 #include "dbcache/queue.h"
+#include "chunker.h"
 
 // max piped http requests per thread
 // value 1 is most stable
@@ -63,7 +64,7 @@ void yt_address_init()
 }
 
 struct flex_io { // yyextra
-    SSL *ssl;
+    struct Chunker chunker;
     sqlite3 *db;
     sqlite3_stmt *video_stmt;
     sqlite3_stmt *channel_stmt;
@@ -107,12 +108,12 @@ void* crawler_wrapper(void* no_args)
         if (connect(client, (struct sockaddr*)&yt_address, sizeof(yt_address)) < 0)
             PANIC("connect() failed. (%d)", errno);
 
-        io.ssl = SSL_new(ctx);
+        io.chunker.ssl = SSL_new(ctx);
         if (!ctx)
             PANIC("SSL_new() failed.");
 
-        SSL_set_fd(io.ssl, client);
-        if (SSL_connect(io.ssl) < 0)
+        SSL_set_fd(io.chunker.ssl, client);
+        if (SSL_connect(io.chunker.ssl) < 0)
             PANIC("SSL_connect() failed. (%d)", errno);
     }
 
@@ -126,9 +127,9 @@ void* crawler_wrapper(void* no_args)
     printf("Thread leaving due to empty queue\n");
 
     // cleanup
-    SSL_shutdown(io.ssl);
+    SSL_shutdown(io.chunker.ssl);
     close(client);
-    SSL_free(io.ssl);
+    SSL_free(io.chunker.ssl);
     SSL_CTX_free(ctx);
     sqlite3_close(io.db);
     sqlite3_finalize(io.channel_stmt);
@@ -147,5 +148,5 @@ void send_request(int64_t id)
         "User-Agent: https_simple\r\n\r\n";
 
     encode64(id, request+13);
-    SSL_write(io.ssl, request, sizeof(request)-1);
+    SSL_write(io.chunker.ssl, request, sizeof(request)-1);
 }
