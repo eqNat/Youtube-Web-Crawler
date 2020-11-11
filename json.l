@@ -15,7 +15,8 @@
 #include "chunker.h"
 
 #undef YY_INPUT
-#define YY_INPUT(buf, result, max_size) result = chunk_read(&yyextra->chunker, buf, max_size)
+#define YY_INPUT(buf, result, max_size) result = chunk_read(&yyextra->chunker, buf, max_size); \
+                                                 write_history(buf, result)
 
 /* debugging */
 //#define YY_USER_ACTION fprintf(stderr, "%s", yytext);

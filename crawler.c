@@ -46,7 +46,6 @@ void crawler(yyscan_t scanner)
     /***********************/
     /**/ yylex(scanner); /**/
     /***********************/
-
     pipe_count--;
     crawler(scanner);
 }
@@ -76,6 +75,8 @@ void* crawler_wrapper(void* no_args)
     SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
     if (!ctx)
         PANIC("SSL_CTX_new() failed.");
+
+    init_history();
 
     {// Open database
         if (sqlite3_open("youtube.db", &(io.db)) != SQLITE_OK) 

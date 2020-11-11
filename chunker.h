@@ -19,3 +19,10 @@ struct Chunker {
 int check_header(struct Chunker* chunker, char* header);
 
 int chunk_read(struct Chunker* chunker, char* buf, int read_count);
+
+void init_history();
+
+void write_history(char* buf, uint64_t size);
+
+void dump_history();
+

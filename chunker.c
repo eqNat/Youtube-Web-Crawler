@@ -31,6 +31,34 @@ int must_read_until(SSL* ssl, char* buf, char delimiter)
     return i;
 }
 
+static _Thread_local char* history;
+static const uint64_t history_size = 1 << 21; // 2 MB
+static _Thread_local uint64_t history_total = 0;
+
+void init_history()
+{
+    history = calloc(history_size, 1);
+}
+
+void write_history(char* buf, uint64_t size)
+{
+    for (uint64_t j = 0; j < size; j++) {
+        history[history_total % history_size] = buf[j];
+        history_total++;
+    }
+}
+
+void dump_history()
+{
+    int f = open("dump", O_CREAT | O_WRONLY, 0777);
+
+    for (uint64_t i = 0; i < history_size; i++) {
+        uint64_t status = write(f, &history[(i+history_total) % history_size], 1);
+        if (status < 1)
+            fprintf(stderr, "chunker: line %u: %s\n", __LINE__, strerror(errno)), exit(1);
+    }
+}
+
 // This function may come in handy when I work with compressed data
 __attribute__ ((unused))
 int next_chunk(SSL* ssl, char** buf, int* buf_size)
@@ -42,7 +70,6 @@ int next_chunk(SSL* ssl, char** buf, int* buf_size)
     do {
         if ((bytes = SSL_read(ssl, &hex_str[i], 1)) < 1)
             fprintf(stderr, "%s", strerror(errno)), exit(1);
-
     } while (hex_str[i++] != '\n');
 
     int chunk_size; // bytes to read
@@ -81,14 +108,13 @@ int check_header(struct Chunker *chunker, char* header)
     } while (strncmp("\r\n\r\n", &header[i++ - 3], 4));
 }
 
-
 int chunk_read(struct Chunker *chunker, char* buf, int read_count)
 {
     int i = 0;
     while (read_count) {
         char hex_str[4096] = { 0 };
         if (chunker->bytes_left == 0) {
-            if (must_read_until(chunker->ssl, hex_str, '\n') == 17) {
+            if (must_read_until(chunker->ssl, hex_str, '\n') > 16) {
                 check_header(chunker, hex_str);
                 must_read_until(chunker->ssl, hex_str, '\n');
             }
